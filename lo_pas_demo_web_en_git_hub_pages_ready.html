@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LoPAS Real‑Time Demo (PKO / Policy‑as‑Code)</title>
+  <style>
+    :root{--bg:#0b1020;--card:#121831;--muted:#9fb0d9;--text:#e9f0ff;--ok:#2fd47a;--warn:#ffb020;--bad:#ff5d6c}
+    *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif}
+    body{margin:0;background:radial-gradient(1200px 600px at 70% -200px,#1a254b 0%,#0b1020 55%,#0a0f1f 100%);color:var(--text)}
+    header{padding:28px 20px 12px;max-width:1100px;margin:0 auto}
+    h1{margin:0 0 6px;font-size:clamp(18px,3vw,26px)}
+    .sub{color:var(--muted);font-size:14px}
+    .wrap{max-width:1100px;margin:0 auto;padding:10px 20px 60px;display:grid;gap:16px;grid-template-columns:1.1fr .9fr}
+    @media (max-width:980px){.wrap{grid-template-columns:1fr}}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.08);box-shadow:0 12px 40px rgba(0,0,0,.35);border-radius:18px;padding:16px}
+    .row{display:grid;grid-template-columns:150px 1fr 80px;gap:12px;align-items:center;margin:10px 0}
+    .row label{font-weight:600}
+    input[type=range]{width:100%}
+    .badge{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:6px 12px;font-weight:700;font-size:12px;letter-spacing:.2px}
+    .g{background:rgba(47,212,122,.15);color:#bdf3d6;border:1px solid rgba(47,212,122,.35)}
+    .a{background:rgba(255,176,32,.15);color:#ffe3b3;border:1px solid rgba(255,176,32,.35)}
+    .r{background:rgba(255,93,108,.15);color:#ffd0d4;border:1px solid rgba(255,93,108,.35)}
+    .kpi{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0}
+    .meter{height:10px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden}
+    .fill{height:100%;background:linear-gradient(90deg,#36d39e,#2a9df4);width:0%}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;color:#cae0ff}
+    .callout{border-left:4px solid #3aa5ff;background:rgba(58,165,255,.08);padding:10px 12px;border-radius:8px}
+    button{background:#1f2b54;border:1px solid rgba(255,255,255,.12);color:#d9e6ff;padding:10px 14px;border-radius:12px;cursor:pointer}
+    button:hover{filter:brightness(1.1)}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>LoPAS Real‑Time Demo (PKO / Indicators × Policy‑as‑Code)</h1>
+    <div class="sub">Move the sliders (0.00–1.00). The app recomputes SCI (demo formula) and recommends a playbook (Soft/Medium/Hard) with a clear exit condition.<br/>* All formulas & thresholds are demo‑grade. Replace via adapters for each country.</div>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <h3 style="margin:4px 0 10px">Indicators</h3>
+      <div id="rows"></div>
+      <div class="grid2" style="margin-top:14px">
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+            <strong>Composite Risk (SCI, demo)</strong>
+            <span id="sciBadge" class="badge g">GREEN</span>
+          </div>
+          <div class="meter" style="margin-top:10px"><div id="sciFill" class="fill"></div></div>
+          <div class="sub" style="margin-top:8px">SCI is an inverse‑weighted mix of CCI, DoQ, RDI, HRI, TRS, RVI (demo). Higher = higher collapse risk.</div>
+        </div>
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+            <strong>Density of Questions (DoQ)</strong>
+            <span id="doqBadge" class="badge g">GREEN</span>
+          </div>
+          <div class="meter" style="margin-top:10px"><div id="doqFill" class="fill"></div></div>
+          <div class="sub" style="margin-top:8px">Higher DoQ = healthier discourse. If low, prioritize branching education & open deliberation.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin:4px 0 10px">Recommended Intervention</h3>
+      <div id="advice" class="callout">—</div>
+      <div class="kpi">
+        <span id="phaseBadge" class="badge g">STABLE</span>
+        <span id="playbookBadge" class="badge g">NONE</span>
+      </div>
+      <div style="margin-top:12px">
+        <button id="exportBtn">Export Snapshot (JSON)</button>
+      </div>
+      <div id="jsonOut" class="mono" style="margin-top:10px"></div>
+    </section>
+  </main>
+
+  <script>
+    // ===== Demo weights (editable) =====
+    const weights = { DoQ:0.22, CCI:0.18, RDI:0.14, HRI:0.10, TRS:0.10, RVI:0.06 };
+    const INDICATORS = [
+      {key:"DoQ", label:"DoQ (Density of Questions)", hint:"Higher is healthier"},
+      {key:"CCI", label:"CCI (Connectivity)", hint:"Higher is healthier"},
+      {key:"RDI", label:"RDI (Reasoning Divergence)", hint:"Higher is healthier"},
+      {key:"HRI", label:"HRI (Hypothesis Reframing)", hint:"Higher is healthier"},
+      {key:"TRS", label:"TRS (Total Resonant Score)", hint:"Higher is healthier"},
+      {key:"RVI", label:"RVI (Restoration Value Index)", hint:"Higher is healthier"}
+    ];
+
+    const state = Object.fromEntries(INDICATORS.map(d=>[d.key,0.65]));
+
+    function clamp01(x){return Math.max(0, Math.min(1, x));}
+
+    function computeSCI(s){
+      // Inverse-weighted sum (demo): higher = worse
+      const inv = (k)=>1 - clamp01(s[k]);
+      let score = 0;
+      score += inv('CCI') * weights.CCI;
+      score += inv('DoQ') * weights.DoQ;
+      score += inv('RDI') * weights.RDI;
+      score += inv('HRI') * weights.HRI;
+      score += inv('TRS') * weights.TRS;
+      score += inv('RVI') * weights.RVI;
+      const wsum = Object.values(weights).reduce((a,b)=>a+b,0);
+      return clamp01(score / wsum);
+    }
+
+    function bandGAR(score, {amber, red, reverse=false}){
+      const v = score;
+      if(!reverse){
+        if(v >= red) return 'RED';
+        if(v >= amber) return 'AMBER';
+        return 'GREEN';
+      } else {
+        if(v <= red) return 'RED';
+        if(v <= amber) return 'AMBER';
+        return 'GREEN';
+      }
+    }
+
+    function decidePlaybook(sci, doq){
+      const sciBand = bandGAR(sci, {amber:0.55, red:0.70});
+      const doqBand = bandGAR(doq, {amber:0.60, red:0.45, reverse:true});
+      let playbook = 'NONE', rationale = '', exit='—', phase='STABLE';
+
+      if(sciBand==='RED' && doqBand==='RED'){
+        playbook='HARD'; phase='CRITICAL';
+        rationale='High structural collapse risk + low DoQ. Short‑term hard interventions: public safety, emergency resource reallocation, misinformation containment.';
+        exit='Hold SCI < AMBER for 72h AND DoQ ≥ 0.55';
+      } else if(sciBand!=='GREEN' && doqBand==='RED'){
+        playbook='MEDIUM'; phase='UNSTABLE';
+        rationale='Branching deficit is the primary driver. Prioritize education, open deliberation, and reframing workshops.';
+        exit='Hold DoQ ≥ 0.60 for 48h';
+      } else if(sciBand==='AMBER' || doqBand==='AMBER'){
+        playbook='SOFT'; phase='WATCH';
+        rationale='Early warning. Improve information hygiene, analyze false alarms, minor resource re‑allocation.';
+        exit='SCI < AMBER AND DoQ ≥ 0.60 for 24h';
+      } else {
+        rationale='Stable. Monitoring only. Weekly micro‑tuning of weights & rules recommended.';
+      }
+      return {playbook, rationale, exit, phase, sciBand, doqBand};
+    }
+
+    function badge(el, band){
+      el.classList.remove('g','a','r');
+      el.textContent = band;
+      el.classList.add(band==='GREEN'?'g':band==='AMBER'?'a':'r');
+    }
+
+    function width(el, v){ el.style.width = (100*v).toFixed(1) + '%'; }
+
+    function renderRows(){
+      const wrap = document.getElementById('rows');
+      wrap.innerHTML='';
+      INDICATORS.forEach(ind =>{
+        const row = document.createElement('div');
+        row.className='row';
+        const lab = document.createElement('label'); lab.textContent=ind.label;
+        const range = document.createElement('input');
+        range.type='range'; range.min='0'; range.max='1'; range.step='0.01'; range.value=state[ind.key];
+        const val = document.createElement('div'); val.style.textAlign='right'; val.textContent=state[ind.key].toFixed(2);
+        range.addEventListener('input', e=>{ state[ind.key]=Number(e.target.value); val.textContent=state[ind.key].toFixed(2); update();});
+        const hint = document.createElement('div'); hint.className='sub'; hint.textContent=ind.hint;
+        const cell = document.createElement('div'); cell.appendChild(range); cell.appendChild(hint);
+        row.appendChild(lab); row.appendChild(cell); row.appendChild(val);
+        wrap.appendChild(row);
+      });
+    }
+
+    function update(){
+      const doq = clamp01(state.DoQ);
+      const sci = computeSCI(state);
+      const sciBand = bandGAR(sci,{amber:0.55, red:0.70});
+      const doqBand = bandGAR(doq,{amber:0.60, red:0.45, reverse:true});
+      badge(document.getElementById('sciBadge'), sciBand);
+      badge(document.getElementById('doqBadge'), doqBand);
+      width(document.getElementById('sciFill'), sci);
+      width(document.getElementById('doqFill'), doq);
+
+      const {playbook,rationale,exit,phase} = decidePlaybook(sci, doq);
+      const pBadge = document.getElementById('playbookBadge');
+      const phaseBadge = document.getElementById('phaseBadge');
+      const advice = document.getElementById('advice');
+
+      phaseBadge.textContent = phase;
+      phaseBadge.classList.remove('g','a','r');
+      phaseBadge.classList.add(phase==='STABLE'?'g':phase==='WATCH'?'a':'r');
+
+      pBadge.textContent = playbook;
+      pBadge.classList.remove('g','a','r');
+      pBadge.classList.add(playbook==='NONE'?'g':playbook==='SOFT'?'a':'r');
+
+      advice.innerHTML = `<strong>Rationale</strong>: ${rationale}<br/><strong>Exit condition</strong>: ${exit}`;
+    }
+
+    document.getElementById('exportBtn').addEventListener('click', ()=>{
+      const snapshot = {
+        timestamp: new Date().toISOString(),
+        indicators: {...state, SCI: computeSCI(state)},
+        decision: decidePlaybook(computeSCI(state), state.DoQ)
+      };
+      document.getElementById('jsonOut').textContent = JSON.stringify(snapshot, null, 2);
+    });
+
+    renderRows();
+    update();
+  </script>
+</body>
+</html>
