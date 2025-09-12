@@ -2,352 +2,128 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>LoPAS Demo (UI → API JSON)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LoPAS Lifestyle Demo</title>
   <style>
-    :root{--b:#111;--fg:#111;--muted:#777;--br:#e2e2e2;}
-    body{font-family:system-ui,Arial,sans-serif;max-width:980px;margin:24px auto;padding:0 12px;color:var(--fg)}
-    h1{font-size:20px;margin:0 0 8px;}
-    h3{margin:0 0 8px;font-size:16px}
-    .row{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;}
-    .card{border:1px solid var(--br);border-radius:10px;padding:12px;flex:1;min-width:280px}
-    .grid{display:grid;grid-template-columns:170px 1fr 60px;gap:6px;align-items:center}
-    input[type="range"],input[type="number"],textarea{width:100%}
-    .btn{padding:10px 14px;border:1px solid #444;border-radius:10px;background:var(--b);color:#fff;cursor:pointer}
-    .btn.secondary{background:#fff;color:#111}
-    .out{font-weight:bold}
-    .muted{color:var(--muted)}
-    .mono{font-family:ui-monospace,Consolas,monospace}
-    .bullets{margin:6px 0 0 16px;padding:0}
-    .bullets li{margin:2px 0}
-    .err{display:none;border:1px solid #f2b8b5;background:#ffecec;color:#851d19;border-radius:8px;padding:8px 10px;margin:8px 0}
-    textarea{min-height:100px;font-family:inherit}
-    .small{font-size:12px}
+    :root{--bg:#0b1020;--card:#121831;--muted:#9fb0d9;--text:#e9f0ff;--ok:#2fd47a;--warn:#ffb020;--bad:#ff5d6c}
+    *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP",sans-serif}
+    body{margin:0;background:#0b1020;color:var(--text)}
+    header{padding:20px;max-width:900px;margin:0 auto}
+    h1{margin:0 0 6px;font-size:clamp(18px,3vw,26px)}
+    .sub{color:var(--muted);font-size:14px}
+    main{max-width:900px;margin:0 auto;padding:20px;display:grid;gap:16px}
+    .card{background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:16px}
+    .row{display:grid;grid-template-columns:140px 1fr 60px;gap:12px;align-items:center;margin:10px 0}
+    input[type=number],input[type=range]{width:100%}
+    button{background:#1f2b54;border:1px solid rgba(255,255,255,.2);color:#d9e6ff;padding:10px 14px;border-radius:12px;cursor:pointer}
+    button:hover{filter:brightness(1.1)}
+    .badge{display:inline-block;border-radius:999px;padding:4px 10px;font-weight:700;font-size:12px;margin:2px}
+    .g{background:rgba(47,212,122,.15);color:#bdf3d6}
+    .a{background:rgba(255,176,32,.15);color:#ffe3b3}
+    .r{background:rgba(255,93,108,.15);color:#ffd0d4}
+    .mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre-wrap;color:#cae0ff}
   </style>
 </head>
 <body>
-  <h1>LoPAS Demo (UI → API JSON)</h1>
-  <p class="muted mono">
-    API = <span id="api_url"></span><br/>
-    Open with: <code>?live=1&api=https://icy-wave-e70d.hanabokur0.workers.dev</code>
-  </p>
+  <header>
+    <h1>LoPAS Lifestyle Demo</h1>
+    <div class="sub">Enter daily allocation + priorities → API → indices + advice</div>
+  </header>
 
-  <div id="err" class="err"></div>
+  <main>
+    <!-- Inputs -->
+    <section class="card">
+      <h3>1. Daily Allocation (sum = 100)</h3>
+      <div class="row"><label>Work</label><input id="q_work" type="number" min="0" max="100" value="25"/><span>%</span></div>
+      <div class="row"><label>Rest</label><input id="q_rest" type="number" min="0" max="100" value="25"/><span>%</span></div>
+      <div class="row"><label>Creative</label><input id="q_creative" type="number" min="0" max="100" value="25"/><span>%</span></div>
+      <div class="row"><label>Social</label><input id="q_social" type="number" min="0" max="100" value="25"/><span>%</span></div>
+    </section>
 
-  <div class="row">
-    <div class="card">
-      <h3>Inputs (features)</h3>
-      <div class="grid">
-        <span>DoQ: questionCount</span>
-        <input id="doq_q" type="range" min="0" max="12" value="10" /><span class="mono" id="doq_q_v">10</span>
-        <span>DoQ: struct</span>
-        <input id="doq_s" type="range" min="0" max="100" value="70" /><span class="mono" id="doq_s_v">70</span>
-        <span>DoQ: diversity</span>
-        <input id="doq_d" type="range" min="0" max="100" value="60" /><span class="mono" id="doq_d_v">60</span>
-        <span>DoQ: integration</span>
-        <input id="doq_i" type="range" min="0" max="100" value="80" /><span class="mono" id="doq_i_v">80</span>
-        <span>TRS: fatigue</span>
-        <input id="trs_f" type="range" min="0" max="100" value="30" /><span class="mono" id="trs_f_v">30</span>
-        <span>TRS: recovery</span>
-        <input id="trs_r" type="range" min="0" max="100" value="70" /><span class="mono" id="trs_r_v">70</span>
-        <span>TRS: reward</span>
-        <input id="trs_w" type="range" min="0" max="100" value="60" /><span class="mono" id="trs_w_v">60</span>
-        <span>TRS: meaning</span>
-        <input id="trs_m" type="range" min="0" max="100" value="80" /><span class="mono" id="trs_m_v">80</span>
-      </div>
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn" id="btn_features">解析（features→scores）</button>
-        <button class="btn secondary" id="btn_scores">解析（scores直渡し）</button>
-      </div>
-    </div>
+    <section class="card">
+      <h3>2. Global Modulators (0–4)</h3>
+      <div class="row"><label>Fast</label><input id="m_fast" type="number" min="0" max="4" value="2"/></div>
+      <div class="row"><label>Low Cost</label><input id="m_cost" type="number" min="0" max="4" value="2"/></div>
+      <div class="row"><label>Privacy</label><input id="m_priv" type="number" min="0" max="4" value="2"/></div>
+    </section>
 
-    <div class="card">
+    <section class="card">
+      <button id="submitBtn">Submit to API</button>
+    </section>
+
+    <!-- Outputs -->
+    <section class="card">
       <h3>Outputs</h3>
-      <div class="grid">
-        <span>DoQ</span><span class="out" id="out_doq">—</span><span></span>
-        <span>CCI</span><span class="out" id="out_cci">—</span><span></span>
-        <span>RDI</span><span class="out" id="out_rdi">—</span><span></span>
-        <span>HRI</span><span class="out" id="out_hri">—</span><span></span>
-        <span>TRS</span><span class="out" id="out_trs">—</span><span></span>
-        <span>RVI</span><span class="out" id="out_rvi">—</span><span></span>
-        <span>AHI</span><span class="out" id="out_ahi">—</span><span></span>
-        <span>SCI</span><span class="out" id="out_sci">—</span><span id="out_grade" class="mono muted"></span>
-      </div>
-      <div id="judgment_wrap" class="small" style="margin-top:8px;display:none;">
-        <span class="mono muted" id="judgment_label"></span>
-        <ul id="judgment_bullets" class="bullets"></ul>
-      </div>
-    </div>
-  </div>
-
-  <div class="row">
-    <div class="card">
-      <h3>Scores (direct)</h3>
-      <div class="grid">
-        <span>DoQ</span><input id="s_doq" type="number" min="0" max="100" value="60" /><span></span>
-        <span>CCI</span><input id="s_cci" type="number" min="0" max="100" value="61" /><span></span>
-        <span>RDI</span><input id="s_rdi" type="number" min="0" max="100" value="62" /><span></span>
-        <span>HRI</span><input id="s_hri" type="number" min="0" max="100" value="55" /><span></span>
-        <span>TRS</span><input id="s_trs" type="number" min="0" max="100" value="59" /><span></span>
-        <span>RVI</span><input id="s_rvi" type="number" min="0" max="100" value="50" /><span></span>
-        <span>AHI</span><input id="s_ahi" type="number" min="0" max="100" value="54" /><span></span>
-      </div>
-      <button class="btn secondary" id="btn_scores2">送信（scores直渡し）</button>
-    </div>
-
-    <div class="card">
-      <h3>Documents (heuristic)</h3>
-      <textarea id="doc_text" placeholder="ここに文章を貼り付け → heuristic 推定"></textarea>
-      <button class="btn secondary" id="btn_docs">解析（documents→heuristic）</button>
-    </div>
-  </div>
+      <div id="out_badges"></div>
+      <div id="out_advice" style="margin-top:10px"></div>
+      <pre id="out_json" class="mono"></pre>
+    </section>
+  </main>
 
   <script>
-  (function(){
-    const qs = (k)=> new URLSearchParams(location.search).get(k);
-    const API = (qs('api')||'https://icy-wave-e70d.hanabokur0.workers.dev').replace(/\/+$/,'');
-    document.getElementById('api_url').textContent = API;
+    const API = "https://icy-wave-e70d.hanabokur0.workers.dev";
 
-    // スライダー値表示
-    for(const id of ['doq_q','doq_s','doq_d','doq_i','trs_f','trs_r','trs_w','trs_m']){
-      const el=document.getElementById(id), v=document.getElementById(id+'_v');
-      if(el&&v){ el.addEventListener('input',()=>v.textContent=el.value); v.textContent=el.value; }
+    async function callAPI(payload){
+      const res = await fetch(API+"/api/score",{
+        method:"POST",
+        headers:{"content-type":"application/json"},
+        body:JSON.stringify(payload)
+      });
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      return await res.json();
     }
 
-    async function postJSON(path,payload){
-      try{
-        const res=await fetch(API+path,{
-          method:'POST',headers:{'content-type':'application/json'},
-          body:JSON.stringify(payload||{}),mode:'cors'
-        });
-        if(!res.ok) throw new Error('HTTP '+res.status);
-        return await res.json();
-      }catch(e){ showErr(e.message||String(e)); throw e; }
+    function buildPayload(){
+      const alloc = {
+        work: Number(q_work.value||0),
+        rest: Number(q_rest.value||0),
+        creative: Number(q_creative.value||0),
+        social: Number(q_social.value||0),
+      };
+      const mods = {
+        fast: Number(m_fast.value||0),
+        low_cost: Number(m_cost.value||0),
+        privacy: Number(m_priv.value||0),
+      };
+      return {
+        inputs: {
+          documents: [
+            { text: JSON.stringify({q0:alloc, M:mods}) }
+          ]
+        }
+      };
     }
 
-    function buildFeatures(){
-      const g=id=>Number(document.getElementById(id)?.value||0);
-      return {DoQ:{questionCount:g('doq_q'),struct:g('doq_s'),diversity:g('doq_d'),integration:g('doq_i')},
-              TRS:{fatigue:g('trs_f'),recovery:g('trs_r'),reward:g('trs_w'),meaning:g('trs_m')}};
-    }
-    function buildScores(){
-      const g=id=>Number(document.getElementById(id)?.value||0);
-      return {DoQ:g('s_doq'),CCI:g('s_cci'),RDI:g('s_rdi'),HRI:g('s_hri'),
-              TRS:g('s_trs'),RVI:g('s_rvi'),AHI:g('s_ahi')};
-    }
-
-    function setOut(o){
-      const put=(id,val)=>{const el=document.getElementById(id);if(!el)return;
-        if('value'in el)el.value=val;el.textContent=String(val);}
-      if(!o)return;
-      put('out_doq',o.DoQ);put('out_cci',o.CCI);put('out_rdi',o.RDI);
-      put('out_hri',o.HRI);put('out_trs',o.TRS);put('out_rvi',o.RVI);
-      put('out_ahi',o.AHI);put('out_sci',o.SCI);
-      const g=document.getElementById('out_grade');if(g)g.textContent=o.SCI_grade||'';
-      const jw=document.getElementById('judgment_wrap');
-      if(o.judgment){document.getElementById('judgment_label').textContent=o.judgment.label||'';
-        const ul=document.getElementById('judgment_bullets');ul.innerHTML='';
-        (o.judgment.bullets||[]).forEach(b=>{const li=document.createElement('li');li.textContent=b;ul.appendChild(li);});
-        jw.style.display='block';}else{jw.style.display='none';}
-    }
-
-    function showErr(msg){const e=document.getElementById('err');e.textContent=msg;e.style.display='block';setTimeout(()=>{e.style.display='none';},5000);}
-
-    async function analyzeFeatures(){const out=await postJSON('/api/score',{inputs:buildFeatures()});setOut(out.outputs);}
-    async function analyzeScores(){const out=await postJSON('/api/score',{scores:buildScores()});setOut(out.outputs);}
-    async function analyzeDocs(){
-      const txt=document.getElementById('doc_text').value||'';if(!txt.trim())return;
-      const out=await postJSON('/api/score',{documents:[{text:txt}]});setOut(out.outputs);
-    }
-
-    document.getElementById('btn_features')?.addEventListener('click',analyzeFeatures);
-    document.getElementById('btn_scores')?.addEventListener('click',analyzeScores);
-    document.getElementById('btn_scores2')?.addEventListener('click',analyzeScores);
-    document.getElementById('btn_docs')?.addEventListener('click',analyzeDocs);
-  })();
-  </script>
-  <script>
-/* LoPAS UI adapter: API -> UI 反映（数字/バー/バッジ/所見） */
-(function(){
-  const qs = (k)=> new URLSearchParams(location.search).get(k);
-  const API = (qs('api') || 'https://icy-wave-e70d.hanabokur0.workers.dev').replace(/\/+$/,'');
-  const $  = (sel,root=document)=> root.querySelector(sel);
-  const $$ = (sel,root=document)=> Array.from(root.querySelectorAll(sel));
-
-  // ---- 1) API 呼び出し ----
-  async function postJSON(path, payload){
-    const res = await fetch(API+path, {
-      method:'POST',
-      headers:{'content-type':'application/json'},
-      body: JSON.stringify(payload||{}),
-      mode:'cors'
-    });
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    return res.json();
-  }
-
-  // ---- 2) UIへ反映（ID優先 / data-* フォールバック） ----
-  function putText(idOrEl, val){
-    if(!idOrEl) return;
-    const el = typeof idOrEl==='string' ? document.getElementById(idOrEl) : idOrEl;
-    if(!el) return;
-    if('value' in el) el.value = val;
-    el.textContent = String(val);
-  }
-  function setWidth(el, pct){ if(el) el.style.width = (pct==null?'0':pct)+'%'; }
-  function setBadge(el, grade){
-    if(!el) return;
-    const g = (grade||'').toUpperCase();
-    el.textContent = g;
-    el.classList.remove('GREEN','YELLOW','RED');
-    el.classList.add(g);
-  }
-
-  // メイン反映
-  function applyOutputs(o){
-    if(!o) return;
-
-    // 2-1) 数字（ID と data-score の両対応）
-    const map = {DoQ:'out_doq',CCI:'out_cci',RDI:'out_rdi',HRI:'out_hri',TRS:'out_trs',RVI:'out_rvi',AHI:'out_ahi',SCI:'out_sci'};
-    Object.entries(map).forEach(([k,id])=>{
-      putText(id, o[k]);
-      $$(`[data-score="${k}"]`).forEach(el=> putText(el, o[k]));
-    });
-
-    // 2-2) バー幅（下のグラフ/ゲージ想定）
-    //   例）<div data-bar="DoQ"><div class="bar"></div></div>
-    Object.keys(map).forEach(k=>{
-      $$(`[data-bar="${k}"] .bar, [data-bar="${k}"] .progress, #bar_${k.toLowerCase()}`)
-        .forEach(el => setWidth(el, o[k]));
-    });
-
-    // 2-3) グレード（ピル/バッジ）
-    setBadge(document.getElementById('out_grade'), o.SCI_grade);
-    $$('[data-grade="SCI"]').forEach(el=> setBadge(el, o.SCI_grade));
-
-    // 2-4) 右パネル：所見/対処（judgment をそのまま表示）
-    const j = o.judgment || {};
-    putText('judgment_label', j.label || '');
-    putText('rec_rationale', j.label ? (j.label==='Emergency'?'Emergency: 48–72h monitoring':'Stable: Weekly monitoring') : '');
-    const ul = document.getElementById('judgment_bullets');
-    if(ul){
-      ul.innerHTML = '';
-      (j.bullets||[]).forEach(b=>{ const li=document.createElement('li'); li.textContent=b; ul.appendChild(li); });
-      const wrap = document.getElementById('judgment_wrap'); if(wrap) wrap.style.display = (j.bullets && j.bullets.length)?'block':'none';
-    }
-
-    // 2-5) 任意：下段のカスタムチャートがある場合はここで再描画
-    if (window.updateLoPASCharts) window.updateLoPASCharts(o); // あれば呼ぶ
-  }
-
-  // ---- 3) UI→API ハンドラ（既存ボタンと data-action の両対応） ----
-  async function analyzeFeatures(){
-    const g = id => Number(document.getElementById(id)?.value || 0);
-    const inputs = {
-      DoQ:{questionCount:g('doq_q'), struct:g('doq_s'), diversity:g('doq_d'), integration:g('doq_i')},
-      TRS:{fatigue:g('trs_f'), recovery:g('trs_r'), reward:g('trs_w'), meaning:g('trs_m')}
-    };
-    const out = await postJSON('/api/score', { inputs });
-    applyOutputs(out.outputs);
-  }
-  async function analyzeScores(){
-    const g = id => Number(document.getElementById(id)?.value || 0);
-    const scores = { DoQ:g('s_doq'), CCI:g('s_cci'), RDI:g('s_rdi'), HRI:g('s_hri'), TRS:g('s_trs'), RVI:g('s_rvi'), AHI:g('s_ahi') };
-    const out = await postJSON('/api/score', { scores });
-    applyOutputs(out.outputs);
-  }
-  async function analyzeDocs(){
-    const txt = document.getElementById('doc_text')?.value || '';
-    if(!txt.trim()) return;
-    const out = await postJSON('/api/score', { documents:[{text:txt}] });
-    applyOutputs(out.outputs);
-  }
-
-  // 既存IDのボタンに紐づけ（なければ無視）
-  document.getElementById('btn_features')?.addEventListener('click', analyzeFeatures);
-  document.getElementById('btn_scores')?.addEventListener('click', analyzeScores);
-  document.getElementById('btn_scores2')?.addEventListener('click', analyzeScores);
-  document.getElementById('btn_docs')?.addEventListener('click', analyzeDocs);
-
-  // data-action にも対応（新UIのボタンで使える）
-  document.addEventListener('click', (e)=>{
-    const a = e.target.closest('[data-action]');
-    if(!a) return;
-    if(a.dataset.action==='analyze-features') analyzeFeatures();
-    if(a.dataset.action==='analyze-scores')   analyzeScores();
-    if(a.dataset.action==='analyze-docs')     analyzeDocs();
-  });
-
-  // 初期表示：API URL 表示
-  const apiSpan = document.getElementById('api_url'); if(apiSpan) apiSpan.textContent = API;
-
-  // デバッグ用：window からも呼べる
-  window.LOPAS = { applyOutputs, analyzeFeatures, analyzeScores, analyzeDocs, API };
-})();
-</script>
-<script>
-/* LoPAS response adapter (drop-in) */
-(function(){
-  const $  = (sel,root=document)=> root.querySelector(sel);
-  const $$ = (sel,root=document)=> Array.from(root.querySelectorAll(sel));
-
-  // 1) UI更新ロジック（数字 / バー / バッジ / 所見）
-  function applyOutputs(o){
-    if(!o) return;
-
-    // 数字（id と data-score の両方をサポート）
-    const ids = {DoQ:'out_doq',CCI:'out_cci',RDI:'out_rdi',HRI:'out_hri',TRS:'out_trs',RVI:'out_rvi',AHI:'out_ahi',SCI:'out_sci'};
-    for(const k of Object.keys(ids)){
-      const id = ids[k]; const v = o[k];
-      if(document.getElementById(id)){ document.getElementById(id).textContent = v; }
-      $$(`[data-score="${k}"]`).forEach(el=> el.textContent = v);
-    }
-
-    // バー（data-bar="DoQ" など / 既存のゲージに合わせて拡張）
-    const setWidth = (el,p)=> el && (el.style.width = (p==null?0:p)+'%');
-    Object.keys(ids).forEach(k=>{
-      $$(`[data-bar="${k}"] .bar, [data-bar="${k}"] .progress, #bar_${k.toLowerCase()}`)
-        .forEach(el=> setWidth(el, o[k]));
-    });
-
-    // グレード（SCIバッジ）
-    const setBadge=(el,g)=>{ if(!el) return; const G=(g||'').toUpperCase();
-      el.textContent=G; el.classList.remove('GREEN','YELLOW','RED'); el.classList.add(G); };
-    setBadge(document.getElementById('out_grade'), o.SCI_grade);
-    $$('[data-grade="SCI"]').forEach(el=> setBadge(el, o.SCI_grade));
-
-    // 所見（右パネル）
-    const j = o.judgment || {};
-    if($('#judgment_label')) $('#judgment_label').textContent = j.label||'';
-    if($('#judgment_bullets')){
-      const ul = $('#judgment_bullets'); ul.innerHTML='';
-      (j.bullets||[]).forEach(b=>{ const li=document.createElement('li'); li.textContent=b; ul.appendChild(li); });
-      if($('#judgment_wrap')) $('#judgment_wrap').style.display = (j.bullets&&j.bullets.length)?'block':'none';
-    }
-
-    // 任意のカスタム再描画フック
-    if(window.updateLoPASCharts) window.updateLoPASCharts(o);
-  }
-
-  // 2) fetch をプロキシ：/api/score のレスポンスを横取りして apply
-  const OF = window.fetch;
-  window.fetch = async function(input, init){
-    const res = await OF(input, init);
-    try{
-      const url = (typeof input==='string'? input : (input && input.url)) || '';
-      if(url.includes('/api/score') || url.includes('/v1/eval')){
-        const clone = res.clone();
-        clone.json().then(data=>{
-          if(data && data.outputs) applyOutputs(data.outputs);
-        }).catch(()=>{/* ignore non-JSON */});
+    function render(out){
+      const b = document.getElementById("out_badges");
+      b.innerHTML="";
+      const bands = (v)=> v>=70?"r":v>=50?"a":"g";
+      for(const k of ["DoQ","CCI","CRI","TRS","RVI"]){
+        const val = out[k];
+        if(val==null) continue;
+        const span=document.createElement("span");
+        span.className="badge "+bands(val);
+        span.textContent=`${k}: ${val}`;
+        b.appendChild(span);
       }
-    }catch(_){}
-    return res;
-  };
+      const adv=document.getElementById("out_advice");
+      adv.innerHTML="";
+      if(out.judgment){
+        adv.innerHTML = `<strong>${out.judgment.label}</strong><br>`+
+          (out.judgment.bullets||[]).map(x=>"• "+x).join("<br>");
+      }
+      document.getElementById("out_json").textContent = JSON.stringify(out,null,2);
+    }
 
-  // 3) 念のため手動テスト用（コンソールから呼べる）
-  window.__LoPAS_applyOutputs = applyOutputs;
-})();
-</script>
+    document.getElementById("submitBtn").addEventListener("click",async()=>{
+      try{
+        const payload=buildPayload();
+        const res=await callAPI(payload);
+        render(res.outputs||{});
+      }catch(e){
+        alert("Error: "+e.message);
+      }
+    });
+  </script>
 </body>
 </html>
