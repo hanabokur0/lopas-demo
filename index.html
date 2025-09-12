@@ -3,68 +3,61 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>LoPAS Demo (JSON bridge)</title>
+  <title>LoPAS Demo (UI → API JSON)</title>
   <style>
-    body{font-family:system-ui,Arial,sans-serif;max-width:900px;margin:24px auto;padding:0 12px;}
+    :root{--b:#111;--fg:#111;--muted:#777;--br:#e2e2e2;}
+    body{font-family:system-ui,Arial,sans-serif;max-width:980px;margin:24px auto;padding:0 12px;color:var(--fg)}
     h1{font-size:20px;margin:0 0 8px;}
+    h3{margin:0 0 8px;font-size:16px}
     .row{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;}
-    .card{border:1px solid #ddd;border-radius:8px;padding:12px;flex:1;min-width:260px}
-    label{display:flex;justify-content:space-between;gap:8px;margin:6px 0;}
-    input[type="range"]{width:62%}
-    .btn{padding:10px 14px;border:1px solid #444;border-radius:8px;background:#111;color:#fff;cursor:pointer}
+    .card{border:1px solid var(--br);border-radius:10px;padding:12px;flex:1;min-width:280px}
+    .grid{display:grid;grid-template-columns:170px 1fr 60px;gap:6px;align-items:center}
+    input[type="range"]{width:100%}
+    .btn{padding:10px 14px;border:1px solid #444;border-radius:10px;background:var(--b);color:#fff;cursor:pointer}
+    .btn.secondary{background:#fff;color:#111}
     .out{font-weight:bold}
-    .muted{color:#777}
-    .grid{display:grid;grid-template-columns:160px 1fr 120px;gap:6px;align-items:center}
+    .muted{color:var(--muted)}
     .mono{font-family:ui-monospace,Consolas,monospace}
+    .bullets{margin:6px 0 0 16px;padding:0}
+    .bullets li{margin:2px 0}
+    .err{display:none;border:1px solid #f2b8b5;background:#ffecec;color:#851d19;border-radius:8px;padding:8px 10px;margin:8px 0}
+    textarea{width:100%;min-height:100px;font-family:inherit}
+    .small{font-size:12px}
   </style>
 </head>
 <body>
   <h1>LoPAS Demo (UI → API JSON)</h1>
   <p class="muted mono">
-    API = <span id="api_url"></span> |
+    API = <span id="api_url"></span><br/>
     Open with: <code>?live=1&api=https://icy-wave-e70d.hanabokur0.workers.dev</code>
   </p>
+
+  <div id="err" class="err"></div>
 
   <div class="row">
     <div class="card">
       <h3>Inputs (features)</h3>
       <div class="grid">
         <span>DoQ: questionCount</span>
-        <input id="doq_q" type="range" min="0" max="12" value="10" />
-        <span class="mono" id="doq_q_v">10</span>
-
+        <input id="doq_q" type="range" min="0" max="12" value="10" /><span class="mono" id="doq_q_v">10</span>
         <span>DoQ: struct</span>
-        <input id="doq_s" type="range" min="0" max="100" value="70" />
-        <span class="mono" id="doq_s_v">70</span>
-
+        <input id="doq_s" type="range" min="0" max="100" value="70" /><span class="mono" id="doq_s_v">70</span>
         <span>DoQ: diversity</span>
-        <input id="doq_d" type="range" min="0" max="100" value="60" />
-        <span class="mono" id="doq_d_v">60</span>
-
+        <input id="doq_d" type="range" min="0" max="100" value="60" /><span class="mono" id="doq_d_v">60</span>
         <span>DoQ: integration</span>
-        <input id="doq_i" type="range" min="0" max="100" value="80" />
-        <span class="mono" id="doq_i_v">80</span>
-
+        <input id="doq_i" type="range" min="0" max="100" value="80" /><span class="mono" id="doq_i_v">80</span>
         <span>TRS: fatigue</span>
-        <input id="trs_f" type="range" min="0" max="100" value="30" />
-        <span class="mono" id="trs_f_v">30</span>
-
+        <input id="trs_f" type="range" min="0" max="100" value="30" /><span class="mono" id="trs_f_v">30</span>
         <span>TRS: recovery</span>
-        <input id="trs_r" type="range" min="0" max="100" value="70" />
-        <span class="mono" id="trs_r_v">70</span>
-
+        <input id="trs_r" type="range" min="0" max="100" value="70" /><span class="mono" id="trs_r_v">70</span>
         <span>TRS: reward</span>
-        <input id="trs_w" type="range" min="0" max="100" value="60" />
-        <span class="mono" id="trs_w_v">60</span>
-
+        <input id="trs_w" type="range" min="0" max="100" value="60" /><span class="mono" id="trs_w_v">60</span>
         <span>TRS: meaning</span>
-        <input id="trs_m" type="range" min="0" max="100" value="80" />
-        <span class="mono" id="trs_m_v">80</span>
+        <input id="trs_m" type="range" min="0" max="100" value="80" /><span class="mono" id="trs_m_v">80</span>
       </div>
-
-      <div style="margin-top:10px; display:flex; gap:8px;">
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn" id="btn_features">解析（features→scores）</button>
-        <button class="btn" id="btn_scores">解析（scores直渡し）</button>
+        <button class="btn secondary" id="btn_scores">解析（scores直渡し）</button>
       </div>
     </div>
 
@@ -80,63 +73,102 @@
         <span>AHI</span><span class="out" id="out_ahi">—</span><span></span>
         <span>SCI</span><span class="out" id="out_sci">—</span><span id="out_grade" class="mono muted"></span>
       </div>
+      <div id="judgment_wrap" class="small" style="margin-top:8px;display:none;">
+        <span class="mono muted" id="judgment_label"></span>
+        <ul id="judgment_bullets" class="bullets"></ul>
+      </div>
     </div>
   </div>
 
-  <!-- JSONブリッジ（サーバはCloudflare、これはGitHubの index.html 置換） -->
+  <div class="row">
+    <div class="card">
+      <h3>Scores (direct)</h3>
+      <div class="grid">
+        <span>DoQ</span><input id="s_doq" type="number" min="0" max="100" value="60" /><span></span>
+        <span>CCI</span><input id="s_cci" type="number" min="0" max="100" value="61" /><span></span>
+        <span>RDI</span><input id="s_rdi" type="number" min="0" max="100" value="62" /><span></span>
+        <span>HRI</span><input id="s_hri" type="number" min="0" max="100" value="55" /><span></span>
+        <span>TRS</span><input id="s_trs" type="number" min="0" max="100" value="59" /><span></span>
+        <span>RVI</span><input id="s_rvi" type="number" min="0" max="100" value="50" /><span></span>
+        <span>AHI</span><input id="s_ahi" type="number" min="0" max="100" value="54" /><span></span>
+      </div>
+      <button class="btn secondary" id="btn_scores2">送信（scores直渡し）</button>
+    </div>
+
+    <div class="card">
+      <h3>Documents (heuristic)</h3>
+      <textarea id="doc_text" placeholder="ここに文章を貼り付け → heuristic 推定"></textarea>
+      <button class="btn secondary" id="btn_docs">解析（documents→heuristic）</button>
+    </div>
+  </div>
+
   <script>
   (function(){
     const qs = (k)=> new URLSearchParams(location.search).get(k);
-    const API = (qs('api') || 'https://icy-wave-e70d.hanabokur0.workers.dev').replace(/\/+$/,'');
+    const API = (qs('api')||'https://icy-wave-e70d.hanabokur0.workers.dev').replace(/\/+$/,'');
     document.getElementById('api_url').textContent = API;
 
-    // 値表示の同期
+    // 値表示の同期（スライダー）
     for(const id of ['doq_q','doq_s','doq_d','doq_i','trs_f','trs_r','trs_w','trs_m']){
-      const el = document.getElementById(id), v = document.getElementById(id+'_v');
-      if(el && v){ el.addEventListener('input',()=> v.textContent = el.value); v.textContent = el.value; }
+      const el=document.getElementById(id), v=document.getElementById(id+'_v');
+      if(el&&v){ el.addEventListener('input',()=>v.textContent=el.value); v.textContent=el.value; }
     }
 
-    async function postJSON(path, payload){
-      const res = await fetch(API + path, {
-        method:'POST',
-        headers:{'content-type':'application/json'},
-        body: JSON.stringify(payload||{}),
-        mode:'cors'
-      });
-      if(!res.ok) throw new Error('HTTP '+res.status);
-      return res.json();
+    async function postJSON(path,payload){
+      try{
+        const res=await fetch(API+path,{
+          method:'POST',headers:{'content-type':'application/json'},
+          body:JSON.stringify(payload||{}),mode:'cors'
+        });
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        return await res.json();
+      }catch(e){
+        showErr(e.message||String(e));
+        throw e;
+      }
     }
 
     function buildFeatures(){
-      const g = id => Number(document.getElementById(id)?.value ?? 0);
-      return {
-        DoQ:{questionCount:g('doq_q'), struct:g('doq_s'), diversity:g('doq_d'), integration:g('doq_i')},
-        TRS:{fatigue:g('trs_f'), recovery:g('trs_r'), reward:g('trs_w'), meaning:g('trs_m')}
-      };
+      const g=id=>Number(document.getElementById(id)?.value||0);
+      return {DoQ:{questionCount:g('doq_q'),struct:g('doq_s'),diversity:g('doq_d'),integration:g('doq_i')},
+              TRS:{fatigue:g('trs_f'),recovery:g('trs_r'),reward:g('trs_w'),meaning:g('trs_m')}};
+    }
+    function buildScores(){
+      const g=id=>Number(document.getElementById(id)?.value||0);
+      return {DoQ:g('s_doq'),CCI:g('s_cci'),RDI:g('s_rdi'),HRI:g('s_hri'),TRS:g('s_trs'),RVI:g('s_rvi'),AHI:g('s_ahi')};
     }
 
     function setOut(o){
-      const put = (id,val)=>{ const el=document.getElementById(id); if(!el) return;
-        if('value' in el) el.value=val; el.textContent=String(val); };
-      if(!o) return;
-      put('out_doq', o.DoQ); put('out_cci', o.CCI); put('out_rdi', o.RDI);
-      put('out_hri', o.HRI); put('out_trs', o.TRS); put('out_rvi', o.RVI);
-      put('out_ahi', o.AHI); put('out_sci', o.SCI);
-      const g = document.getElementById('out_grade'); if(g) g.textContent = o.SCI_grade||'';
+      const put=(id,val)=>{const el=document.getElementById(id);if(!el)return;
+        if('value'in el)el.value=val;el.textContent=String(val);}
+      if(!o)return;
+      put('out_doq',o.DoQ);put('out_cci',o.CCI);put('out_rdi',o.RDI);
+      put('out_hri',o.HRI);put('out_trs',o.TRS);put('out_rvi',o.RVI);
+      put('out_ahi',o.AHI);put('out_sci',o.SCI);
+      const g=document.getElementById('out_grade');if(g)g.textContent=o.SCI_grade||'';
+      const jw=document.getElementById('judgment_wrap');
+      if(o.judgment){document.getElementById('judgment_label').textContent=o.judgment.label||'';
+        const ul=document.getElementById('judgment_bullets');ul.innerHTML='';
+        (o.judgment.bullets||[]).forEach(b=>{const li=document.createElement('li');li.textContent=b;ul.appendChild(li);});
+        jw.style.display='block';}else{jw.style.display='none';}
     }
 
-    async function analyzeFeatures(){
-      const out = await postJSON('/api/score', { inputs: buildFeatures() });
-      setOut(out.outputs);
-      console.log('[LoPAS] features→scores', out);
+    function showErr(msg){const e=document.getElementById('err');e.textContent=msg;e.style.display='block';setTimeout(()=>{e.style.display='none';},5000);}
+
+    async function analyzeFeatures(){const out=await postJSON('/api/score',{inputs:buildFeatures()});setOut(out.outputs);}
+    async function analyzeScores(){const out=await postJSON('/api/score',{scores:buildScores()});setOut(out.outputs);}
+    async function analyzeDocs(){
+      const txt=document.getElementById('doc_text').value||'';if(!txt.trim())return;
+      const out=await postJSON('/api/score',{documents:[{text:txt}]});setOut(out.outputs);
     }
 
-    // scores直渡しは Part 2 で実装
-    document.getElementById('btn_features')?.addEventListener('click', analyzeFeatures);
-    document.getElementById('btn_scores')?.addEventListener('click', ()=>alert('Part 2 で有効化します'));
-    window.__LOPAS_API__ = { analyzeFeatures }; // デバッグ用
+    document.getElementById('btn_features')?.addEventListener('click',analyzeFeatures);
+    document.getElementById('btn_scores')?.addEventListener('click',analyzeScores);
+    document.getElementById('btn_scores2')?.addEventListener('click',analyzeScores);
+    document.getElementById('btn_docs')?.addEventListener('click',analyzeDocs);
+
+    window.__LOPAS_API__={analyzeFeatures,analyzeScores,analyzeDocs};
   })();
   </script>
 </body>
 </html>
-
