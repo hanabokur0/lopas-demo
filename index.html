@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LoPAS Real‑Time Demo (PKO / Policy‑as‑Code)</title>
+  <title>LoPAS Real-Time Demo (PKO / Policy-as-Code)</title>
   <style>
     :root{--bg:#0b1020;--card:#121831;--muted:#9fb0d9;--text:#e9f0ff;--ok:#2fd47a;--warn:#ffb020;--bad:#ff5d6c}
     *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif}
@@ -29,15 +29,44 @@
     .callout{border-left:4px solid #3aa5ff;background:rgba(58,165,255,.08);padding:10px 12px;border-radius:8px}
     button{background:#1f2b54;border:1px solid rgba(255,255,255,.12);color:#d9e6ff;padding:10px 14px;border-radius:12px;cursor:pointer}
     button:hover{filter:brightness(1.1)}
+    textarea{width:100%;background:rgba(255,255,255,.03);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px}
+    input[type=file]{width:100%}
   </style>
 </head>
 <body>
   <header>
-    <h1>LoPAS Real‑Time Demo (PKO / Indicators × Policy‑as‑Code)</h1>
-    <div class="sub">Move the sliders (0.00–1.00). The app recomputes SCI (demo formula) and recommends a playbook (Soft/Medium/Hard) with a clear exit condition.<br/>* All formulas & thresholds are demo‑grade. Replace via adapters for each country.</div>
+    <h1>LoPAS Real-Time Demo (PKO / Indicators × Policy-as-Code)</h1>
+    <div class="sub">
+      Paste a transcript or attach files, then click <strong>Analyze</strong>.  
+      If launched with <code>?live=1&api=...</code>, indicators recompute <em>server-side</em> on Cloudflare Workers.
+    </div>
+    <div class="kpi">
+      <span id="liveBadge" class="badge a">Demo (offline)</span>
+      <span id="authBadge" class="badge a" style="display:none">No Auth</span>
+    </div>
   </header>
 
   <main class="wrap">
+    <!-- Entrance (Input) -->
+    <section class="card" style="grid-column:1 / -1">
+      <h3 style="margin:4px 0 10px">Input (Transcript / Minutes / Photo Meta)</h3>
+      <label class="sub">Paste conversation / minutes</label>
+      <textarea id="inpText" rows="4" placeholder="Paste text here..."></textarea>
+      <div style="margin-top:8px">
+        <label class="sub">Attach files (txt, md, json, csv, jpg/png)</label>
+        <input id="inpFiles" type="file" multiple accept=".txt,.md,.json,.csv,image/*,text/*,application/json" />
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px; align-items:center">
+        <button id="btnAnalyze">Analyze (API)</button>
+        <button id="btnExport">Export Snapshot (JSON)</button>
+      </div>
+      <details style="margin-top:8px">
+        <summary>Last payload (debug)</summary>
+        <pre id="debugPayload" class="mono" style="max-height:180px; overflow:auto"></pre>
+      </details>
+    </section>
+
+    <!-- Indicators -->
     <section class="card">
       <h3 style="margin:4px 0 10px">Indicators</h3>
       <div id="rows"></div>
@@ -48,7 +77,7 @@
             <span id="sciBadge" class="badge g">GREEN</span>
           </div>
           <div class="meter" style="margin-top:10px"><div id="sciFill" class="fill"></div></div>
-          <div class="sub" style="margin-top:8px">SCI is an inverse‑weighted mix of CCI, DoQ, RDI, HRI, TRS, RVI (demo). Higher = higher collapse risk.</div>
+          <div class="sub" style="margin-top:8px">SCI is an inverse-weighted mix of CCI, DoQ, RDI, HRI, TRS, RVI (demo). Higher = higher collapse risk.</div>
         </div>
         <div class="card">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
@@ -61,6 +90,7 @@
       </div>
     </section>
 
+    <!-- Recommendation -->
     <section class="card">
       <h3 style="margin:4px 0 10px">Recommended Intervention</h3>
       <div id="advice" class="callout">—</div>
@@ -68,16 +98,22 @@
         <span id="phaseBadge" class="badge g">STABLE</span>
         <span id="playbookBadge" class="badge g">NONE</span>
       </div>
-      <div style="margin-top:12px">
-        <button id="exportBtn">Export Snapshot (JSON)</button>
-      </div>
       <div id="jsonOut" class="mono" style="margin-top:10px"></div>
     </section>
   </main>
 
   <script>
-    // ===== Demo weights (editable) =====
-    const weights = { DoQ:0.22, CCI:0.18, RDI:0.14, HRI:0.10, TRS:0.10, RVI:0.06 };
+    /* ===== Config ===== */
+    const params = new URLSearchParams(location.search);
+    const API_BASE = params.get('api') || '';                 // e.g. https://icy-wave-e70d.hanabokur0.workers.dev
+    const LIVE     = params.get('live') === '1' && !!API_BASE; // live mode only if both flags present
+    const KEY      = params.get('key') || '';                  // optional: Authorization Bearer key
+
+    const liveBadge = document.getElementById('liveBadge');
+    const authBadge = document.getElementById('authBadge');
+    if (KEY) { authBadge.style.display = 'inline-flex'; authBadge.textContent = 'Bearer Key'; authBadge.className = 'badge g'; }
+
+    /* ===== Demo model ===== */
     const INDICATORS = [
       {key:"DoQ", label:"DoQ (Density of Questions)", hint:"Higher is healthier"},
       {key:"CCI", label:"CCI (Connectivity)", hint:"Higher is healthier"},
@@ -86,124 +122,151 @@
       {key:"TRS", label:"TRS (Total Resonant Score)", hint:"Higher is healthier"},
       {key:"RVI", label:"RVI (Restoration Value Index)", hint:"Higher is healthier"}
     ];
-
+    const weights = { DoQ:0.22, CCI:0.18, RDI:0.14, HRI:0.10, TRS:0.10, RVI:0.06 };
     const state = Object.fromEntries(INDICATORS.map(d=>[d.key,0.65]));
 
-    function clamp01(x){return Math.max(0, Math.min(1, x));}
+    const clamp01 = x => Math.max(0, Math.min(1, x));
+    const avg = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : 0;
 
     function computeSCI(s){
-      // Inverse-weighted sum (demo): higher = worse
-      const inv = (k)=>1 - clamp01(s[k]);
-      let score = 0;
-      score += inv('CCI') * weights.CCI;
-      score += inv('DoQ') * weights.DoQ;
-      score += inv('RDI') * weights.RDI;
-      score += inv('HRI') * weights.HRI;
-      score += inv('TRS') * weights.TRS;
-      score += inv('RVI') * weights.RVI;
+      const inv = k => 1 - clamp01(s[k]);
       const wsum = Object.values(weights).reduce((a,b)=>a+b,0);
-      return clamp01(score / wsum);
+      const score = (inv('CCI')*weights.CCI + inv('DoQ')*weights.DoQ + inv('RDI')*weights.RDI +
+                     inv('HRI')*weights.HRI + inv('TRS')*weights.TRS + inv('RVI')*weights.RVI) / wsum;
+      return clamp01(score);
     }
-
-    function bandGAR(score, {amber, red, reverse=false}){
-      const v = score;
-      if(!reverse){
-        if(v >= red) return 'RED';
-        if(v >= amber) return 'AMBER';
-        return 'GREEN';
-      } else {
-        if(v <= red) return 'RED';
-        if(v <= amber) return 'AMBER';
-        return 'GREEN';
-      }
+    function bandGAR(v, {amber, red, reverse=false}){
+      if(!reverse){ if(v>=red) return 'RED'; if(v>=amber) return 'AMBER'; return 'GREEN'; }
+      else{ if(v<=red) return 'RED'; if(v<=amber) return 'AMBER'; return 'GREEN'; }
     }
-
     function decidePlaybook(sci, doq){
       const sciBand = bandGAR(sci, {amber:0.55, red:0.70});
       const doqBand = bandGAR(doq, {amber:0.60, red:0.45, reverse:true});
-      let playbook = 'NONE', rationale = '', exit='—', phase='STABLE';
-
-      if(sciBand==='RED' && doqBand==='RED'){
-        playbook='HARD'; phase='CRITICAL';
-        rationale='High structural collapse risk + low DoQ. Short‑term hard interventions: public safety, emergency resource reallocation, misinformation containment.';
-        exit='Hold SCI < AMBER for 72h AND DoQ ≥ 0.55';
-      } else if(sciBand!=='GREEN' && doqBand==='RED'){
-        playbook='MEDIUM'; phase='UNSTABLE';
-        rationale='Branching deficit is the primary driver. Prioritize education, open deliberation, and reframing workshops.';
-        exit='Hold DoQ ≥ 0.60 for 48h';
-      } else if(sciBand==='AMBER' || doqBand==='AMBER'){
-        playbook='SOFT'; phase='WATCH';
-        rationale='Early warning. Improve information hygiene, analyze false alarms, minor resource re‑allocation.';
-        exit='SCI < AMBER AND DoQ ≥ 0.60 for 24h';
-      } else {
-        rationale='Stable. Monitoring only. Weekly micro‑tuning of weights & rules recommended.';
-      }
-      return {playbook, rationale, exit, phase, sciBand, doqBand};
+      let playbook='NONE', rationale='', exit='—', phase='STABLE';
+      if(sciBand==='RED' && doqBand==='RED'){ playbook='HARD'; phase='CRITICAL'; rationale='High collapse risk + low DoQ.'; exit='SCI<YELLOW 72h & DoQ≥0.55';}
+      else if(sciBand!=='GREEN' && doqBand==='RED'){ playbook='MEDIUM'; phase='UNSTABLE'; rationale='Branching deficit primary.'; exit='DoQ≥0.60 for 48h';}
+      else if(sciBand==='AMBER' || doqBand==='AMBER'){ playbook='SOFT'; phase='WATCH'; rationale='Early warning.'; exit='SCI<GREEN & DoQ≥0.60 for 24h';}
+      else { rationale='Stable. Monitoring only.'; }
+      return {playbook,rationale,exit,phase};
     }
-
-    function badge(el, band){
-      el.classList.remove('g','a','r');
-      el.textContent = band;
-      el.classList.add(band==='GREEN'?'g':band==='AMBER'?'a':'r');
-    }
-
-    function width(el, v){ el.style.width = (100*v).toFixed(1) + '%'; }
+    function badge(el, band){ el.classList.remove('g','a','r'); el.textContent=band; el.classList.add(band==='GREEN'?'g':band==='AMBER'?'a':'r'); }
+    function width(el, v){ el.style.width=(100*v).toFixed(1)+'%'; }
 
     function renderRows(){
-      const wrap = document.getElementById('rows');
-      wrap.innerHTML='';
+      const wrap = document.getElementById('rows'); wrap.innerHTML='';
       INDICATORS.forEach(ind =>{
-        const row = document.createElement('div');
-        row.className='row';
-        const lab = document.createElement('label'); lab.textContent=ind.label;
-        const range = document.createElement('input');
-        range.type='range'; range.min='0'; range.max='1'; range.step='0.01'; range.value=state[ind.key];
-        const val = document.createElement('div'); val.style.textAlign='right'; val.textContent=state[ind.key].toFixed(2);
+        const row=document.createElement('div'); row.className='row';
+        const lab=document.createElement('label'); lab.textContent=ind.label;
+        const range=document.createElement('input'); range.type='range'; range.min='0'; range.max='1'; range.step='0.01'; range.value=state[ind.key];
+        const val=document.createElement('div'); val.style.textAlign='right'; val.textContent=state[ind.key].toFixed(2);
         range.addEventListener('input', e=>{ state[ind.key]=Number(e.target.value); val.textContent=state[ind.key].toFixed(2); update();});
-        const hint = document.createElement('div'); hint.className='sub'; hint.textContent=ind.hint;
-        const cell = document.createElement('div'); cell.appendChild(range); cell.appendChild(hint);
+        const hint=document.createElement('div'); hint.className='sub'; hint.textContent=ind.hint;
+        const cell=document.createElement('div'); cell.appendChild(range); cell.appendChild(hint);
         row.appendChild(lab); row.appendChild(cell); row.appendChild(val);
         wrap.appendChild(row);
       });
     }
 
     function update(){
-      const doq = clamp01(state.DoQ);
-      const sci = computeSCI(state);
-      const sciBand = bandGAR(sci,{amber:0.55, red:0.70});
-      const doqBand = bandGAR(doq,{amber:0.60, red:0.45, reverse:true});
-      badge(document.getElementById('sciBadge'), sciBand);
-      badge(document.getElementById('doqBadge'), doqBand);
+      const doq=clamp01(state.DoQ);
+      const sci=computeSCI(state);
+      badge(document.getElementById('sciBadge'), bandGAR(sci,{amber:0.55, red:0.70}));
+      badge(document.getElementById('doqBadge'), bandGAR(doq,{amber:0.60, red:0.45, reverse:true}));
       width(document.getElementById('sciFill'), sci);
       width(document.getElementById('doqFill'), doq);
-
-      const {playbook,rationale,exit,phase} = decidePlaybook(sci, doq);
-      const pBadge = document.getElementById('playbookBadge');
-      const phaseBadge = document.getElementById('phaseBadge');
-      const advice = document.getElementById('advice');
-
-      phaseBadge.textContent = phase;
-      phaseBadge.classList.remove('g','a','r');
-      phaseBadge.classList.add(phase==='STABLE'?'g':phase==='WATCH'?'a':'r');
-
-      pBadge.textContent = playbook;
-      pBadge.classList.remove('g','a','r');
-      pBadge.classList.add(playbook==='NONE'?'g':playbook==='SOFT'?'a':'r');
-
-      advice.innerHTML = `<strong>Rationale</strong>: ${rationale}<br/><strong>Exit condition</strong>: ${exit}`;
+      const {playbook,rationale,exit,phase}=decidePlaybook(sci,doq);
+      const pBadge=document.getElementById('playbookBadge'); const phaseBadge=document.getElementById('phaseBadge'); const advice=document.getElementById('advice');
+      phaseBadge.textContent=phase; phaseBadge.className='badge '+(phase==='STABLE'?'g':phase==='WATCH'?'a':'r');
+      pBadge.textContent=playbook; pBadge.className='badge '+(playbook==='NONE'?'g':playbook==='SOFT'?'a':'r');
+      advice.innerHTML=`<strong>Rationale</strong>: ${rationale}<br/><strong>Exit condition</strong>: ${exit}`;
     }
 
-    document.getElementById('exportBtn').addEventListener('click', ()=>{
+    // Health check (shows Live badge)
+    (async ()=>{
+      if(!LIVE){ liveBadge.textContent='Demo (offline)'; return; }
+      try{
+        const r = await fetch(`${API_BASE}/v1/health`, { mode:'cors' });
+        if(r.ok){ liveBadge.textContent='⚡ Live API'; liveBadge.className='badge g'; }
+        else { liveBadge.textContent='API Unreachable'; liveBadge.className='badge r'; }
+      }catch{ liveBadge.textContent='API Unreachable'; liveBadge.className='badge r'; }
+    })();
+
+    // Read files (text/json/image meta only)
+    async function readFiles(fileList){
+      const docs=[];
+      for (const f of fileList){
+        if (f.type.startsWith('text') || /\.(txt|md|csv)$/i.test(f.name)) {
+          docs.push({ type:'text', name:f.name, text: await f.text() });
+        } else if (f.type==='application/json' || /\.json$/i.test(f.name)) {
+          const raw=await f.text(); let json=null; try{ json=JSON.parse(raw);}catch{}
+          docs.push({ type:'json', name:f.name, json, raw });
+        } else if (f.type.startsWith('image/') || /\.(jpg|jpeg|png)$/i.test(f.name)) {
+          docs.push({ type:'image_meta', name:f.name, meta:{ size:f.size, lastModified:f.lastModified, mime:f.type }});
+        } else {
+          docs.push({ type:'file_meta', name:f.name, meta:{ size:f.size, mime:f.type }});
+        }
+      }
+      return docs;
+    }
+
+    function getCurrentIndicatorInputs(){
+      return {
+        DoQ:{ questionCount:0, struct: Math.round(state.DoQ*100), diversity: Math.round(state.DoQ*100), integration: Math.round(state.DoQ*100) },
+        TRS:{ fatigue: Math.round((1-state.TRS)*100), recovery: Math.round(state.TRS*100), reward: Math.round(state.TRS*100), meaning: Math.round(state.TRS*100) }
+      };
+    }
+
+    async function callApi(payload){
+      if(!LIVE){
+        // offline mock: slightly nudge DoQ by number of question marks
+        const t = payload.documents?.find(d=>d.type==='transcript')?.text || '';
+        const q = (t.match(/\?/g)||[]).length;
+        const outDoQ = Math.round(Math.min(1, state.DoQ + Math.min(0.1, q*0.01)) * 100);
+        const outTRS = Math.round(state.TRS * 100);
+        const sci = Math.round((1 - ((outDoQ/100)+(outTRS/100))/2)*100);
+        return { outputs:{ DoQ:outDoQ, TRS:outTRS, SCI:sci, SCI_grade: sci>70?'RED':sci>40?'YELLOW':'GREEN' },
+                 judgment:{ label: sci>70?'Emergency':'Stable', bullets: sci>70?['即時安全確保','72h密観測']:['週次モニタリング'] } };
+      }
+      const headers = { 'content-type':'application/json' };
+      if (KEY) headers['authorization'] = `Bearer ${KEY}`;
+      const r = await fetch(`${API_BASE}/v1/eval`, { method:'POST', mode:'cors', headers, body: JSON.stringify(payload) });
+      if(!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    }
+
+    document.getElementById('btnAnalyze').addEventListener('click', async ()=>{
+      const text = document.getElementById('inpText').value || '';
+      const files = document.getElementById('inpFiles').files || [];
+      const docs = await readFiles(files);
+      const payload = {
+        context:{ locale:'en-US', timezone:'Asia/Tokyo', scenario:'PKO', source:['ui', text?'transcript':null, files.length?'attachments':null].filter(Boolean) },
+        inputs: getCurrentIndicatorInputs(),
+        documents:[ ...(text?[{type:'transcript', name:'pasted', text}]:[]), ...docs ]
+      };
+      document.getElementById('debugPayload').textContent = JSON.stringify({ ...payload, documents: payload.documents.slice(0,3) }, null, 2);
+      try{
+        const res = await callApi(payload);
+        // map back to UI
+        if (res?.outputs?.DoQ!=null) state.DoQ = Math.max(0, Math.min(1, res.outputs.DoQ/100));
+        if (res?.outputs?.TRS!=null) state.TRS = Math.max(0, Math.min(1, res.outputs.TRS/100));
+        update();
+      }catch(e){
+        alert('Analyze failed: '+e.message);
+        liveBadge.textContent='API Error'; liveBadge.className='badge r';
+      }
+    });
+
+    document.getElementById('btnExport').addEventListener('click', ()=>{
       const snapshot = {
         timestamp: new Date().toISOString(),
-        indicators: {...state, SCI: computeSCI(state)},
+        indicators: { ...state, SCI: computeSCI(state) },
         decision: decidePlaybook(computeSCI(state), state.DoQ)
       };
       document.getElementById('jsonOut').textContent = JSON.stringify(snapshot, null, 2);
     });
 
-    renderRows();
-    update();
+    // boot
+    renderRows(); update();
   </script>
 </body>
 </html>
