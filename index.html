@@ -285,6 +285,69 @@
   window.LOPAS = { applyOutputs, analyzeFeatures, analyzeScores, analyzeDocs, API };
 })();
 </script>
+<script>
+/* LoPAS response adapter (drop-in) */
+(function(){
+  const $  = (sel,root=document)=> root.querySelector(sel);
+  const $$ = (sel,root=document)=> Array.from(root.querySelectorAll(sel));
 
+  // 1) UI更新ロジック（数字 / バー / バッジ / 所見）
+  function applyOutputs(o){
+    if(!o) return;
+
+    // 数字（id と data-score の両方をサポート）
+    const ids = {DoQ:'out_doq',CCI:'out_cci',RDI:'out_rdi',HRI:'out_hri',TRS:'out_trs',RVI:'out_rvi',AHI:'out_ahi',SCI:'out_sci'};
+    for(const k of Object.keys(ids)){
+      const id = ids[k]; const v = o[k];
+      if(document.getElementById(id)){ document.getElementById(id).textContent = v; }
+      $$(`[data-score="${k}"]`).forEach(el=> el.textContent = v);
+    }
+
+    // バー（data-bar="DoQ" など / 既存のゲージに合わせて拡張）
+    const setWidth = (el,p)=> el && (el.style.width = (p==null?0:p)+'%');
+    Object.keys(ids).forEach(k=>{
+      $$(`[data-bar="${k}"] .bar, [data-bar="${k}"] .progress, #bar_${k.toLowerCase()}`)
+        .forEach(el=> setWidth(el, o[k]));
+    });
+
+    // グレード（SCIバッジ）
+    const setBadge=(el,g)=>{ if(!el) return; const G=(g||'').toUpperCase();
+      el.textContent=G; el.classList.remove('GREEN','YELLOW','RED'); el.classList.add(G); };
+    setBadge(document.getElementById('out_grade'), o.SCI_grade);
+    $$('[data-grade="SCI"]').forEach(el=> setBadge(el, o.SCI_grade));
+
+    // 所見（右パネル）
+    const j = o.judgment || {};
+    if($('#judgment_label')) $('#judgment_label').textContent = j.label||'';
+    if($('#judgment_bullets')){
+      const ul = $('#judgment_bullets'); ul.innerHTML='';
+      (j.bullets||[]).forEach(b=>{ const li=document.createElement('li'); li.textContent=b; ul.appendChild(li); });
+      if($('#judgment_wrap')) $('#judgment_wrap').style.display = (j.bullets&&j.bullets.length)?'block':'none';
+    }
+
+    // 任意のカスタム再描画フック
+    if(window.updateLoPASCharts) window.updateLoPASCharts(o);
+  }
+
+  // 2) fetch をプロキシ：/api/score のレスポンスを横取りして apply
+  const OF = window.fetch;
+  window.fetch = async function(input, init){
+    const res = await OF(input, init);
+    try{
+      const url = (typeof input==='string'? input : (input && input.url)) || '';
+      if(url.includes('/api/score') || url.includes('/v1/eval')){
+        const clone = res.clone();
+        clone.json().then(data=>{
+          if(data && data.outputs) applyOutputs(data.outputs);
+        }).catch(()=>{/* ignore non-JSON */});
+      }
+    }catch(_){}
+    return res;
+  };
+
+  // 3) 念のため手動テスト用（コンソールから呼べる）
+  window.__LoPAS_applyOutputs = applyOutputs;
+})();
+</script>
 </body>
 </html>
