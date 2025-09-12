@@ -166,5 +166,125 @@
     document.getElementById('btn_docs')?.addEventListener('click',analyzeDocs);
   })();
   </script>
+  <script>
+/* LoPAS UI adapter: API -> UI 反映（数字/バー/バッジ/所見） */
+(function(){
+  const qs = (k)=> new URLSearchParams(location.search).get(k);
+  const API = (qs('api') || 'https://icy-wave-e70d.hanabokur0.workers.dev').replace(/\/+$/,'');
+  const $  = (sel,root=document)=> root.querySelector(sel);
+  const $$ = (sel,root=document)=> Array.from(root.querySelectorAll(sel));
+
+  // ---- 1) API 呼び出し ----
+  async function postJSON(path, payload){
+    const res = await fetch(API+path, {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body: JSON.stringify(payload||{}),
+      mode:'cors'
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    return res.json();
+  }
+
+  // ---- 2) UIへ反映（ID優先 / data-* フォールバック） ----
+  function putText(idOrEl, val){
+    if(!idOrEl) return;
+    const el = typeof idOrEl==='string' ? document.getElementById(idOrEl) : idOrEl;
+    if(!el) return;
+    if('value' in el) el.value = val;
+    el.textContent = String(val);
+  }
+  function setWidth(el, pct){ if(el) el.style.width = (pct==null?'0':pct)+'%'; }
+  function setBadge(el, grade){
+    if(!el) return;
+    const g = (grade||'').toUpperCase();
+    el.textContent = g;
+    el.classList.remove('GREEN','YELLOW','RED');
+    el.classList.add(g);
+  }
+
+  // メイン反映
+  function applyOutputs(o){
+    if(!o) return;
+
+    // 2-1) 数字（ID と data-score の両対応）
+    const map = {DoQ:'out_doq',CCI:'out_cci',RDI:'out_rdi',HRI:'out_hri',TRS:'out_trs',RVI:'out_rvi',AHI:'out_ahi',SCI:'out_sci'};
+    Object.entries(map).forEach(([k,id])=>{
+      putText(id, o[k]);
+      $$(`[data-score="${k}"]`).forEach(el=> putText(el, o[k]));
+    });
+
+    // 2-2) バー幅（下のグラフ/ゲージ想定）
+    //   例）<div data-bar="DoQ"><div class="bar"></div></div>
+    Object.keys(map).forEach(k=>{
+      $$(`[data-bar="${k}"] .bar, [data-bar="${k}"] .progress, #bar_${k.toLowerCase()}`)
+        .forEach(el => setWidth(el, o[k]));
+    });
+
+    // 2-3) グレード（ピル/バッジ）
+    setBadge(document.getElementById('out_grade'), o.SCI_grade);
+    $$('[data-grade="SCI"]').forEach(el=> setBadge(el, o.SCI_grade));
+
+    // 2-4) 右パネル：所見/対処（judgment をそのまま表示）
+    const j = o.judgment || {};
+    putText('judgment_label', j.label || '');
+    putText('rec_rationale', j.label ? (j.label==='Emergency'?'Emergency: 48–72h monitoring':'Stable: Weekly monitoring') : '');
+    const ul = document.getElementById('judgment_bullets');
+    if(ul){
+      ul.innerHTML = '';
+      (j.bullets||[]).forEach(b=>{ const li=document.createElement('li'); li.textContent=b; ul.appendChild(li); });
+      const wrap = document.getElementById('judgment_wrap'); if(wrap) wrap.style.display = (j.bullets && j.bullets.length)?'block':'none';
+    }
+
+    // 2-5) 任意：下段のカスタムチャートがある場合はここで再描画
+    if (window.updateLoPASCharts) window.updateLoPASCharts(o); // あれば呼ぶ
+  }
+
+  // ---- 3) UI→API ハンドラ（既存ボタンと data-action の両対応） ----
+  async function analyzeFeatures(){
+    const g = id => Number(document.getElementById(id)?.value || 0);
+    const inputs = {
+      DoQ:{questionCount:g('doq_q'), struct:g('doq_s'), diversity:g('doq_d'), integration:g('doq_i')},
+      TRS:{fatigue:g('trs_f'), recovery:g('trs_r'), reward:g('trs_w'), meaning:g('trs_m')}
+    };
+    const out = await postJSON('/api/score', { inputs });
+    applyOutputs(out.outputs);
+  }
+  async function analyzeScores(){
+    const g = id => Number(document.getElementById(id)?.value || 0);
+    const scores = { DoQ:g('s_doq'), CCI:g('s_cci'), RDI:g('s_rdi'), HRI:g('s_hri'), TRS:g('s_trs'), RVI:g('s_rvi'), AHI:g('s_ahi') };
+    const out = await postJSON('/api/score', { scores });
+    applyOutputs(out.outputs);
+  }
+  async function analyzeDocs(){
+    const txt = document.getElementById('doc_text')?.value || '';
+    if(!txt.trim()) return;
+    const out = await postJSON('/api/score', { documents:[{text:txt}] });
+    applyOutputs(out.outputs);
+  }
+
+  // 既存IDのボタンに紐づけ（なければ無視）
+  document.getElementById('btn_features')?.addEventListener('click', analyzeFeatures);
+  document.getElementById('btn_scores')?.addEventListener('click', analyzeScores);
+  document.getElementById('btn_scores2')?.addEventListener('click', analyzeScores);
+  document.getElementById('btn_docs')?.addEventListener('click', analyzeDocs);
+
+  // data-action にも対応（新UIのボタンで使える）
+  document.addEventListener('click', (e)=>{
+    const a = e.target.closest('[data-action]');
+    if(!a) return;
+    if(a.dataset.action==='analyze-features') analyzeFeatures();
+    if(a.dataset.action==='analyze-scores')   analyzeScores();
+    if(a.dataset.action==='analyze-docs')     analyzeDocs();
+  });
+
+  // 初期表示：API URL 表示
+  const apiSpan = document.getElementById('api_url'); if(apiSpan) apiSpan.textContent = API;
+
+  // デバッグ用：window からも呼べる
+  window.LOPAS = { applyOutputs, analyzeFeatures, analyzeScores, analyzeDocs, API };
+})();
+</script>
+
 </body>
 </html>
