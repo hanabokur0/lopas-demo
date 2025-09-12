@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LoPAS Real-Time Demo (PKO / Policy-as-Code)</title>
+  <title>LoPAS Real-Time Demo (汎用AI評価基盤)</title>
   <style>
     :root{--bg:#0b1020;--card:#121831;--muted:#9fb0d9;--text:#e9f0ff;--ok:#2fd47a;--warn:#ffb020;--bad:#ff5d6c}
     *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif}
@@ -14,7 +14,7 @@
     .wrap{max-width:1100px;margin:0 auto;padding:10px 20px 60px;display:grid;gap:16px;grid-template-columns:1.1fr .9fr}
     @media (max-width:980px){.wrap{grid-template-columns:1fr}}
     .card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.08);box-shadow:0 12px 40px rgba(0,0,0,.35);border-radius:18px;padding:16px}
-    .row{display:grid;grid-template-columns:150px 1fr 80px;gap:12px;align-items:center;margin:10px 0}
+    .row{display:grid;grid-template-columns:180px 1fr 70px;gap:12px;align-items:center;margin:10px 0}
     .row label{font-weight:600}
     input[type=range]{width:100%}
     .badge{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:6px 12px;font-weight:700;font-size:12px;letter-spacing:.2px}
@@ -35,10 +35,10 @@
 </head>
 <body>
   <header>
-    <h1>LoPAS Real-Time Demo (PKO / Indicators × Policy-as-Code)</h1>
+    <h1>LoPAS Real-Time Demo（汎用AI評価基盤）</h1>
     <div class="sub">
-      Paste a transcript or attach files, then click <strong>Analyze</strong>.  
-      If launched with <code>?live=1&api=...</code>, indicators recompute <em>server-side</em> on Cloudflare Workers.
+      文章を貼るかファイルを添付して <b>解析</b>。<br/>
+      URLに <code>?live=1&api=…</code> を付けて開くと、Cloudflare Workers の API で再計算されます。
     </div>
     <div class="kpi">
       <span id="liveBadge" class="badge a">Demo (offline)</span>
@@ -47,52 +47,50 @@
   </header>
 
   <main class="wrap">
-    <!-- Entrance (Input) -->
+    <!-- 入力 -->
     <section class="card" style="grid-column:1 / -1">
-      <h3 style="margin:4px 0 10px">Input (Transcript / Minutes / Photo Meta)</h3>
-      <label class="sub">Paste conversation / minutes</label>
-      <textarea id="inpText" rows="4" placeholder="Paste text here..."></textarea>
+      <h3 style="margin:4px 0 10px">入力（会話 / 議事録 / 写真メタ）</h3>
+      <textarea id="inpText" rows="4" placeholder="ここに貼り付け…"></textarea>
       <div style="margin-top:8px">
-        <label class="sub">Attach files (txt, md, json, csv, jpg/png)</label>
+        <label class="sub">ファイル添付（txt, md, json, csv, 画像）</label>
         <input id="inpFiles" type="file" multiple accept=".txt,.md,.json,.csv,image/*,text/*,application/json" />
       </div>
       <div style="margin-top:12px; display:flex; gap:8px; align-items:center">
-        <button id="btnAnalyze">Analyze (API)</button>
-        <button id="btnExport">Export Snapshot (JSON)</button>
+        <button id="btnAnalyze">解析（API）</button>
+        <button id="btnExport">スナップショットのエクスポート（JSON）</button>
       </div>
-      <details style="margin-top:8px">
-        <summary>Last payload (debug)</summary>
+      <details style="margin-top:8px"><summary>最後のペイロード（デバッグ）</summary>
         <pre id="debugPayload" class="mono" style="max-height:180px; overflow:auto"></pre>
       </details>
     </section>
 
-    <!-- Indicators -->
+    <!-- 指標 -->
     <section class="card">
-      <h3 style="margin:4px 0 10px">Indicators</h3>
+      <h3 style="margin:4px 0 10px">指標</h3>
       <div id="rows"></div>
       <div class="grid2" style="margin-top:14px">
         <div class="card">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-            <strong>Composite Risk (SCI, demo)</strong>
+            <strong>複合リスク（SCI, demo）</strong>
             <span id="sciBadge" class="badge g">GREEN</span>
           </div>
           <div class="meter" style="margin-top:10px"><div id="sciFill" class="fill"></div></div>
-          <div class="sub" style="margin-top:8px">SCI is an inverse-weighted mix of CCI, DoQ, RDI, HRI, TRS, RVI (demo). Higher = higher collapse risk.</div>
+          <div class="sub" style="margin-top:8px">CCI/DoQ/RDI/HRI/TRS/RVI の反転合成。高いほどリスク。</div>
         </div>
         <div class="card">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-            <strong>Density of Questions (DoQ)</strong>
+            <strong>DoQ（質問の密度）</strong>
             <span id="doqBadge" class="badge g">GREEN</span>
           </div>
           <div class="meter" style="margin-top:10px"><div id="doqFill" class="fill"></div></div>
-          <div class="sub" style="margin-top:8px">Higher DoQ = healthier discourse. If low, prioritize branching education & open deliberation.</div>
+          <div class="sub" style="margin-top:8px">高いほど健全。低い場合は分岐教育と公開討議を優先。</div>
         </div>
       </div>
     </section>
 
-    <!-- Recommendation -->
+    <!-- 介入推奨 -->
     <section class="card">
-      <h3 style="margin:4px 0 10px">Recommended Intervention</h3>
+      <h3 style="margin:4px 0 10px">推奨される介入</h3>
       <div id="advice" class="callout">—</div>
       <div class="kpi">
         <span id="phaseBadge" class="badge g">STABLE</span>
@@ -103,37 +101,37 @@
   </main>
 
   <script>
-    /* ===== Config ===== */
+    /* ===== 起動設定 ===== */
     const params = new URLSearchParams(location.search);
-    const API_BASE = params.get('api') || '';                 // e.g. https://icy-wave-e70d.hanabokur0.workers.dev
-    const LIVE     = params.get('live') === '1' && !!API_BASE; // live mode only if both flags present
-    const KEY      = params.get('key') || '';                  // optional: Authorization Bearer key
-
+    const API_BASE = params.get('api') || '';
+    const LIVE     = params.get('live') === '1' && !!API_BASE;
+    const KEY      = params.get('key') || '';
     const liveBadge = document.getElementById('liveBadge');
     const authBadge = document.getElementById('authBadge');
-    if (KEY) { authBadge.style.display = 'inline-flex'; authBadge.textContent = 'Bearer Key'; authBadge.className = 'badge g'; }
+    if (KEY) { authBadge.style.display='inline-flex'; authBadge.textContent='Bearer Key'; authBadge.className='badge g'; }
 
-    /* ===== Demo model ===== */
+    /* ===== 指標セット ===== */
     const INDICATORS = [
-      {key:"DoQ", label:"DoQ (Density of Questions)", hint:"Higher is healthier"},
-      {key:"CCI", label:"CCI (Connectivity)", hint:"Higher is healthier"},
-      {key:"RDI", label:"RDI (Reasoning Divergence)", hint:"Higher is healthier"},
-      {key:"HRI", label:"HRI (Hypothesis Reframing)", hint:"Higher is healthier"},
-      {key:"TRS", label:"TRS (Total Resonant Score)", hint:"Higher is healthier"},
-      {key:"RVI", label:"RVI (Restoration Value Index)", hint:"Higher is healthier"}
+      {key:"DoQ", label:"DoQ（質問の密度）", hint:"高いほど健全"},
+      {key:"CCI", label:"CCI（接続性）",     hint:"高いほど健全"},
+      {key:"RDI", label:"RDI（推論の相違）", hint:"高いほど健全"},
+      {key:"HRI", label:"HRI（仮説再構成）", hint:"高いほど健全"},
+      {key:"TRS", label:"TRS（総共鳴スコア）", hint:"高いほど健全"},
+      {key:"RVI", label:"RVI（修復価値指数）", hint:"高いほど健全"},
+      {key:"AHI", label:"AHI（即時幸福影響）", hint:"高いほど健全"}
     ];
     const weights = { DoQ:0.22, CCI:0.18, RDI:0.14, HRI:0.10, TRS:0.10, RVI:0.06 };
     const state = Object.fromEntries(INDICATORS.map(d=>[d.key,0.65]));
 
+    /* ===== util ===== */
     const clamp01 = x => Math.max(0, Math.min(1, x));
     const avg = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : 0;
 
     function computeSCI(s){
       const inv = k => 1 - clamp01(s[k]);
       const wsum = Object.values(weights).reduce((a,b)=>a+b,0);
-      const score = (inv('CCI')*weights.CCI + inv('DoQ')*weights.DoQ + inv('RDI')*weights.RDI +
-                     inv('HRI')*weights.HRI + inv('TRS')*weights.TRS + inv('RVI')*weights.RVI) / wsum;
-      return clamp01(score);
+      return clamp01((inv('CCI')*weights.CCI + inv('DoQ')*weights.DoQ + inv('RDI')*weights.RDI +
+                      inv('HRI')*weights.HRI + inv('TRS')*weights.TRS + inv('RVI')*weights.RVI) / wsum);
     }
     function bandGAR(v, {amber, red, reverse=false}){
       if(!reverse){ if(v>=red) return 'RED'; if(v>=amber) return 'AMBER'; return 'GREEN'; }
@@ -143,15 +141,16 @@
       const sciBand = bandGAR(sci, {amber:0.55, red:0.70});
       const doqBand = bandGAR(doq, {amber:0.60, red:0.45, reverse:true});
       let playbook='NONE', rationale='', exit='—', phase='STABLE';
-      if(sciBand==='RED' && doqBand==='RED'){ playbook='HARD'; phase='CRITICAL'; rationale='High collapse risk + low DoQ.'; exit='SCI<YELLOW 72h & DoQ≥0.55';}
-      else if(sciBand!=='GREEN' && doqBand==='RED'){ playbook='MEDIUM'; phase='UNSTABLE'; rationale='Branching deficit primary.'; exit='DoQ≥0.60 for 48h';}
-      else if(sciBand==='AMBER' || doqBand==='AMBER'){ playbook='SOFT'; phase='WATCH'; rationale='Early warning.'; exit='SCI<GREEN & DoQ≥0.60 for 24h';}
-      else { rationale='Stable. Monitoring only.'; }
+      if(sciBand==='RED' && doqBand==='RED'){ playbook='HARD'; phase='CRITICAL'; rationale='崩壊リスク高＋DoQ低。短期の強介入。'; exit='SCI<YELLOW 72h & DoQ≥0.55';}
+      else if(sciBand!=='GREEN' && doqBand==='RED'){ playbook='MEDIUM'; phase='UNSTABLE'; rationale='分岐不足が主因。分岐教育・公開討議。'; exit='DoQ≥0.60 を48h';}
+      else if(sciBand==='AMBER' || doqBand==='AMBER'){ playbook='SOFT'; phase='WATCH'; rationale='早期警告。情報衛生・軽微配分。'; exit='SCI<GREEN & DoQ≥0.60 を24h';}
+      else { rationale='安定。監視のみ。週次で微調整。'; }
       return {playbook,rationale,exit,phase};
     }
-    function badge(el, band){ el.classList.remove('g','a','r'); el.textContent=band; el.classList.add(band==='GREEN'?'g':band==='AMBER'?'a':'r'); }
+    function badge(el, band){ el.className = 'badge ' + (band==='GREEN'?'g':band==='AMBER'?'a':'r'); el.textContent=band; }
     function width(el, v){ el.style.width=(100*v).toFixed(1)+'%'; }
 
+    /* ===== UI ===== */
     function renderRows(){
       const wrap = document.getElementById('rows'); wrap.innerHTML='';
       INDICATORS.forEach(ind =>{
@@ -178,10 +177,10 @@
       const pBadge=document.getElementById('playbookBadge'); const phaseBadge=document.getElementById('phaseBadge'); const advice=document.getElementById('advice');
       phaseBadge.textContent=phase; phaseBadge.className='badge '+(phase==='STABLE'?'g':phase==='WATCH'?'a':'r');
       pBadge.textContent=playbook; pBadge.className='badge '+(playbook==='NONE'?'g':playbook==='SOFT'?'a':'r');
-      advice.innerHTML=`<strong>Rationale</strong>: ${rationale}<br/><strong>Exit condition</strong>: ${exit}`;
+      advice.innerHTML=`<strong>理由</strong>：${rationale}<br/><strong>終了条件</strong>：${exit}`;
     }
 
-    // Health check (shows Live badge)
+    /* ===== ライブチェック ===== */
     (async ()=>{
       if(!LIVE){ liveBadge.textContent='Demo (offline)'; return; }
       try{
@@ -191,7 +190,7 @@
       }catch{ liveBadge.textContent='API Unreachable'; liveBadge.className='badge r'; }
     })();
 
-    // Read files (text/json/image meta only)
+    /* ===== ファイル入力 ===== */
     async function readFiles(fileList){
       const docs=[];
       for (const f of fileList){
@@ -210,22 +209,29 @@
     }
 
     function getCurrentIndicatorInputs(){
+      // デモ用の簡易入力（APIがfeatures→scoresを使う場合の例）
+      const pct = k => Math.round(state[k]*100);
       return {
-        DoQ:{ questionCount:0, struct: Math.round(state.DoQ*100), diversity: Math.round(state.DoQ*100), integration: Math.round(state.DoQ*100) },
-        TRS:{ fatigue: Math.round((1-state.TRS)*100), recovery: Math.round(state.TRS*100), reward: Math.round(state.TRS*100), meaning: Math.round(state.TRS*100) }
+        DoQ:{ questionCount:0, struct:pct('DoQ'), diversity:pct('DoQ'), integration:pct('DoQ') },
+        CCI:{ strength:pct('CCI'), density:pct('CCI'), stability:pct('CCI'), asymmetry:pct('CCI'), transferability:pct('CCI') },
+        RDI:{ branches:6, distance:pct('RDI'), density:pct('RDI'), integration:pct('RDI') },
+        HRI:{ failureAwareness:pct('HRI'), responseSpeed:pct('HRI'), creativity:pct('HRI'), effectiveness:pct('HRI') },
+        TRS:{ fatigue: Math.round((1-state.TRS)*100), recovery:pct('TRS'), reward:pct('TRS'), meaning:pct('TRS') },
+        RVI:{ physical:pct('RVI'), cultural:pct('RVI'), economic:pct('RVI'), resonance:pct('RVI'), sustainability:pct('RVI') },
+        AHI:{ direct:60, indirect:60, selfSatisfaction:60, longTerm:60 }
       };
     }
 
     async function callApi(payload){
       if(!LIVE){
-        // offline mock: slightly nudge DoQ by number of question marks
+        // オフラインはダミー揺らぎ
         const t = payload.documents?.find(d=>d.type==='transcript')?.text || '';
         const q = (t.match(/\?/g)||[]).length;
-        const outDoQ = Math.round(Math.min(1, state.DoQ + Math.min(0.1, q*0.01)) * 100);
-        const outTRS = Math.round(state.TRS * 100);
-        const sci = Math.round((1 - ((outDoQ/100)+(outTRS/100))/2)*100);
-        return { outputs:{ DoQ:outDoQ, TRS:outTRS, SCI:sci, SCI_grade: sci>70?'RED':sci>40?'YELLOW':'GREEN' },
-                 judgment:{ label: sci>70?'Emergency':'Stable', bullets: sci>70?['即時安全確保','72h密観測']:['週次モニタリング'] } };
+        const bump = Math.min(0.1, q*0.01);
+        const out = {};
+        for (const k of ['DoQ','CCI','RDI','HRI','TRS','RVI','AHI']) out[k] = Math.round(Math.max(0, Math.min(1, state[k] + (k==='DoQ'?bump:0))) * 100);
+        const sci = Math.round((1 - avg(['DoQ','CCI','RDI','HRI','TRS','RVI'].map(k=>out[k]/100))) * 100);
+        return { outputs:{ ...out, SCI:sci, SCI_grade: sci>70?'RED':sci>40?'YELLOW':'GREEN' } };
       }
       const headers = { 'content-type':'application/json' };
       if (KEY) headers['authorization'] = `Bearer ${KEY}`;
@@ -239,16 +245,19 @@
       const files = document.getElementById('inpFiles').files || [];
       const docs = await readFiles(files);
       const payload = {
-        context:{ locale:'en-US', timezone:'Asia/Tokyo', scenario:'PKO', source:['ui', text?'transcript':null, files.length?'attachments':null].filter(Boolean) },
+        context:{ locale:'ja-JP', scenario:'generic', source:['ui', text?'transcript':null, files.length?'attachments':null].filter(Boolean) },
         inputs: getCurrentIndicatorInputs(),
         documents:[ ...(text?[{type:'transcript', name:'pasted', text}]:[]), ...docs ]
       };
       document.getElementById('debugPayload').textContent = JSON.stringify({ ...payload, documents: payload.documents.slice(0,3) }, null, 2);
+
       try{
         const res = await callApi(payload);
-        // map back to UI
-        if (res?.outputs?.DoQ!=null) state.DoQ = Math.max(0, Math.min(1, res.outputs.DoQ/100));
-        if (res?.outputs?.TRS!=null) state.TRS = Math.max(0, Math.min(1, res.outputs.TRS/100));
+        // ★ ここが重要：APIの outputs をすべて UI に反映
+        const out = res?.outputs || {};
+        for (const k of ['DoQ','CCI','RDI','HRI','TRS','RVI','AHI']){
+          if (out[k] != null) state[k] = Math.max(0, Math.min(1, Number(out[k])/100));
+        }
         update();
       }catch(e){
         alert('Analyze failed: '+e.message);
@@ -265,7 +274,7 @@
       document.getElementById('jsonOut').textContent = JSON.stringify(snapshot, null, 2);
     });
 
-    // boot
+    // 起動
     renderRows(); update();
   </script>
 </body>
