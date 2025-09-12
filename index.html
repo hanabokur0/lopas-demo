@@ -1,281 +1,142 @@
 <!doctype html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LoPAS Real-Time Demo (汎用AI評価基盤)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LoPAS Demo (JSON bridge)</title>
   <style>
-    :root{--bg:#0b1020;--card:#121831;--muted:#9fb0d9;--text:#e9f0ff;--ok:#2fd47a;--warn:#ffb020;--bad:#ff5d6c}
-    *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif}
-    body{margin:0;background:radial-gradient(1200px 600px at 70% -200px,#1a254b 0%,#0b1020 55%,#0a0f1f 100%);color:var(--text)}
-    header{padding:28px 20px 12px;max-width:1100px;margin:0 auto}
-    h1{margin:0 0 6px;font-size:clamp(18px,3vw,26px)}
-    .sub{color:var(--muted);font-size:14px}
-    .wrap{max-width:1100px;margin:0 auto;padding:10px 20px 60px;display:grid;gap:16px;grid-template-columns:1.1fr .9fr}
-    @media (max-width:980px){.wrap{grid-template-columns:1fr}}
-    .card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.08);box-shadow:0 12px 40px rgba(0,0,0,.35);border-radius:18px;padding:16px}
-    .row{display:grid;grid-template-columns:180px 1fr 70px;gap:12px;align-items:center;margin:10px 0}
-    .row label{font-weight:600}
-    input[type=range]{width:100%}
-    .badge{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:6px 12px;font-weight:700;font-size:12px;letter-spacing:.2px}
-    .g{background:rgba(47,212,122,.15);color:#bdf3d6;border:1px solid rgba(47,212,122,.35)}
-    .a{background:rgba(255,176,32,.15);color:#ffe3b3;border:1px solid rgba(255,176,32,.35)}
-    .r{background:rgba(255,93,108,.15);color:#ffd0d4;border:1px solid rgba(255,93,108,.35)}
-    .kpi{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0}
-    .meter{height:10px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden}
-    .fill{height:100%;background:linear-gradient(90deg,#36d39e,#2a9df4);width:0%}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;color:#cae0ff}
-    .callout{border-left:4px solid #3aa5ff;background:rgba(58,165,255,.08);padding:10px 12px;border-radius:8px}
-    button{background:#1f2b54;border:1px solid rgba(255,255,255,.12);color:#d9e6ff;padding:10px 14px;border-radius:12px;cursor:pointer}
-    button:hover{filter:brightness(1.1)}
-    textarea{width:100%;background:rgba(255,255,255,.03);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px}
-    input[type=file]{width:100%}
+    body{font-family:system-ui,Arial,sans-serif;max-width:900px;margin:24px auto;padding:0 12px;}
+    h1{font-size:20px;margin:0 0 8px;}
+    .row{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;}
+    .card{border:1px solid #ddd;border-radius:8px;padding:12px;flex:1;min-width:260px}
+    label{display:flex;justify-content:space-between;gap:8px;margin:6px 0;}
+    input[type="range"]{width:62%}
+    .btn{padding:10px 14px;border:1px solid #444;border-radius:8px;background:#111;color:#fff;cursor:pointer}
+    .out{font-weight:bold}
+    .muted{color:#777}
+    .grid{display:grid;grid-template-columns:160px 1fr 120px;gap:6px;align-items:center}
+    .mono{font-family:ui-monospace,Consolas,monospace}
   </style>
 </head>
 <body>
-  <header>
-    <h1>LoPAS Real-Time Demo（汎用AI評価基盤）</h1>
-    <div class="sub">
-      文章を貼るかファイルを添付して <b>解析</b>。<br/>
-      URLに <code>?live=1&api=…</code> を付けて開くと、Cloudflare Workers の API で再計算されます。
+  <h1>LoPAS Demo (UI → API JSON)</h1>
+  <p class="muted mono">
+    API = <span id="api_url"></span> |
+    Open with: <code>?live=1&api=https://icy-wave-e70d.hanabokur0.workers.dev</code>
+  </p>
+
+  <div class="row">
+    <div class="card">
+      <h3>Inputs (features)</h3>
+      <div class="grid">
+        <span>DoQ: questionCount</span>
+        <input id="doq_q" type="range" min="0" max="12" value="10" />
+        <span class="mono" id="doq_q_v">10</span>
+
+        <span>DoQ: struct</span>
+        <input id="doq_s" type="range" min="0" max="100" value="70" />
+        <span class="mono" id="doq_s_v">70</span>
+
+        <span>DoQ: diversity</span>
+        <input id="doq_d" type="range" min="0" max="100" value="60" />
+        <span class="mono" id="doq_d_v">60</span>
+
+        <span>DoQ: integration</span>
+        <input id="doq_i" type="range" min="0" max="100" value="80" />
+        <span class="mono" id="doq_i_v">80</span>
+
+        <span>TRS: fatigue</span>
+        <input id="trs_f" type="range" min="0" max="100" value="30" />
+        <span class="mono" id="trs_f_v">30</span>
+
+        <span>TRS: recovery</span>
+        <input id="trs_r" type="range" min="0" max="100" value="70" />
+        <span class="mono" id="trs_r_v">70</span>
+
+        <span>TRS: reward</span>
+        <input id="trs_w" type="range" min="0" max="100" value="60" />
+        <span class="mono" id="trs_w_v">60</span>
+
+        <span>TRS: meaning</span>
+        <input id="trs_m" type="range" min="0" max="100" value="80" />
+        <span class="mono" id="trs_m_v">80</span>
+      </div>
+
+      <div style="margin-top:10px; display:flex; gap:8px;">
+        <button class="btn" id="btn_features">解析（features→scores）</button>
+        <button class="btn" id="btn_scores">解析（scores直渡し）</button>
+      </div>
     </div>
-    <div class="kpi">
-      <span id="liveBadge" class="badge a">Demo (offline)</span>
-      <span id="authBadge" class="badge a" style="display:none">No Auth</span>
+
+    <div class="card">
+      <h3>Outputs</h3>
+      <div class="grid">
+        <span>DoQ</span><span class="out" id="out_doq">—</span><span></span>
+        <span>CCI</span><span class="out" id="out_cci">—</span><span></span>
+        <span>RDI</span><span class="out" id="out_rdi">—</span><span></span>
+        <span>HRI</span><span class="out" id="out_hri">—</span><span></span>
+        <span>TRS</span><span class="out" id="out_trs">—</span><span></span>
+        <span>RVI</span><span class="out" id="out_rvi">—</span><span></span>
+        <span>AHI</span><span class="out" id="out_ahi">—</span><span></span>
+        <span>SCI</span><span class="out" id="out_sci">—</span><span id="out_grade" class="mono muted"></span>
+      </div>
     </div>
-  </header>
+  </div>
 
-  <main class="wrap">
-    <!-- 入力 -->
-    <section class="card" style="grid-column:1 / -1">
-      <h3 style="margin:4px 0 10px">入力（会話 / 議事録 / 写真メタ）</h3>
-      <textarea id="inpText" rows="4" placeholder="ここに貼り付け…"></textarea>
-      <div style="margin-top:8px">
-        <label class="sub">ファイル添付（txt, md, json, csv, 画像）</label>
-        <input id="inpFiles" type="file" multiple accept=".txt,.md,.json,.csv,image/*,text/*,application/json" />
-      </div>
-      <div style="margin-top:12px; display:flex; gap:8px; align-items:center">
-        <button id="btnAnalyze">解析（API）</button>
-        <button id="btnExport">スナップショットのエクスポート（JSON）</button>
-      </div>
-      <details style="margin-top:8px"><summary>最後のペイロード（デバッグ）</summary>
-        <pre id="debugPayload" class="mono" style="max-height:180px; overflow:auto"></pre>
-      </details>
-    </section>
-
-    <!-- 指標 -->
-    <section class="card">
-      <h3 style="margin:4px 0 10px">指標</h3>
-      <div id="rows"></div>
-      <div class="grid2" style="margin-top:14px">
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-            <strong>複合リスク（SCI, demo）</strong>
-            <span id="sciBadge" class="badge g">GREEN</span>
-          </div>
-          <div class="meter" style="margin-top:10px"><div id="sciFill" class="fill"></div></div>
-          <div class="sub" style="margin-top:8px">CCI/DoQ/RDI/HRI/TRS/RVI の反転合成。高いほどリスク。</div>
-        </div>
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-            <strong>DoQ（質問の密度）</strong>
-            <span id="doqBadge" class="badge g">GREEN</span>
-          </div>
-          <div class="meter" style="margin-top:10px"><div id="doqFill" class="fill"></div></div>
-          <div class="sub" style="margin-top:8px">高いほど健全。低い場合は分岐教育と公開討議を優先。</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 介入推奨 -->
-    <section class="card">
-      <h3 style="margin:4px 0 10px">推奨される介入</h3>
-      <div id="advice" class="callout">—</div>
-      <div class="kpi">
-        <span id="phaseBadge" class="badge g">STABLE</span>
-        <span id="playbookBadge" class="badge g">NONE</span>
-      </div>
-      <div id="jsonOut" class="mono" style="margin-top:10px"></div>
-    </section>
-  </main>
-
+  <!-- JSONブリッジ（サーバはCloudflare、これはGitHubの index.html 置換） -->
   <script>
-    /* ===== 起動設定 ===== */
-    const params = new URLSearchParams(location.search);
-    const API_BASE = params.get('api') || '';
-    const LIVE     = params.get('live') === '1' && !!API_BASE;
-    const KEY      = params.get('key') || '';
-    const liveBadge = document.getElementById('liveBadge');
-    const authBadge = document.getElementById('authBadge');
-    if (KEY) { authBadge.style.display='inline-flex'; authBadge.textContent='Bearer Key'; authBadge.className='badge g'; }
+  (function(){
+    const qs = (k)=> new URLSearchParams(location.search).get(k);
+    const API = (qs('api') || 'https://icy-wave-e70d.hanabokur0.workers.dev').replace(/\/+$/,'');
+    document.getElementById('api_url').textContent = API;
 
-    /* ===== 指標セット ===== */
-    const INDICATORS = [
-      {key:"DoQ", label:"DoQ（質問の密度）", hint:"高いほど健全"},
-      {key:"CCI", label:"CCI（接続性）",     hint:"高いほど健全"},
-      {key:"RDI", label:"RDI（推論の相違）", hint:"高いほど健全"},
-      {key:"HRI", label:"HRI（仮説再構成）", hint:"高いほど健全"},
-      {key:"TRS", label:"TRS（総共鳴スコア）", hint:"高いほど健全"},
-      {key:"RVI", label:"RVI（修復価値指数）", hint:"高いほど健全"},
-      {key:"AHI", label:"AHI（即時幸福影響）", hint:"高いほど健全"}
-    ];
-    const weights = { DoQ:0.22, CCI:0.18, RDI:0.14, HRI:0.10, TRS:0.10, RVI:0.06 };
-    const state = Object.fromEntries(INDICATORS.map(d=>[d.key,0.65]));
-
-    /* ===== util ===== */
-    const clamp01 = x => Math.max(0, Math.min(1, x));
-    const avg = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : 0;
-
-    function computeSCI(s){
-      const inv = k => 1 - clamp01(s[k]);
-      const wsum = Object.values(weights).reduce((a,b)=>a+b,0);
-      return clamp01((inv('CCI')*weights.CCI + inv('DoQ')*weights.DoQ + inv('RDI')*weights.RDI +
-                      inv('HRI')*weights.HRI + inv('TRS')*weights.TRS + inv('RVI')*weights.RVI) / wsum);
+    // 値表示の同期
+    for(const id of ['doq_q','doq_s','doq_d','doq_i','trs_f','trs_r','trs_w','trs_m']){
+      const el = document.getElementById(id), v = document.getElementById(id+'_v');
+      if(el && v){ el.addEventListener('input',()=> v.textContent = el.value); v.textContent = el.value; }
     }
-    function bandGAR(v, {amber, red, reverse=false}){
-      if(!reverse){ if(v>=red) return 'RED'; if(v>=amber) return 'AMBER'; return 'GREEN'; }
-      else{ if(v<=red) return 'RED'; if(v<=amber) return 'AMBER'; return 'GREEN'; }
-    }
-    function decidePlaybook(sci, doq){
-      const sciBand = bandGAR(sci, {amber:0.55, red:0.70});
-      const doqBand = bandGAR(doq, {amber:0.60, red:0.45, reverse:true});
-      let playbook='NONE', rationale='', exit='—', phase='STABLE';
-      if(sciBand==='RED' && doqBand==='RED'){ playbook='HARD'; phase='CRITICAL'; rationale='崩壊リスク高＋DoQ低。短期の強介入。'; exit='SCI<YELLOW 72h & DoQ≥0.55';}
-      else if(sciBand!=='GREEN' && doqBand==='RED'){ playbook='MEDIUM'; phase='UNSTABLE'; rationale='分岐不足が主因。分岐教育・公開討議。'; exit='DoQ≥0.60 を48h';}
-      else if(sciBand==='AMBER' || doqBand==='AMBER'){ playbook='SOFT'; phase='WATCH'; rationale='早期警告。情報衛生・軽微配分。'; exit='SCI<GREEN & DoQ≥0.60 を24h';}
-      else { rationale='安定。監視のみ。週次で微調整。'; }
-      return {playbook,rationale,exit,phase};
-    }
-    function badge(el, band){ el.className = 'badge ' + (band==='GREEN'?'g':band==='AMBER'?'a':'r'); el.textContent=band; }
-    function width(el, v){ el.style.width=(100*v).toFixed(1)+'%'; }
 
-    /* ===== UI ===== */
-    function renderRows(){
-      const wrap = document.getElementById('rows'); wrap.innerHTML='';
-      INDICATORS.forEach(ind =>{
-        const row=document.createElement('div'); row.className='row';
-        const lab=document.createElement('label'); lab.textContent=ind.label;
-        const range=document.createElement('input'); range.type='range'; range.min='0'; range.max='1'; range.step='0.01'; range.value=state[ind.key];
-        const val=document.createElement('div'); val.style.textAlign='right'; val.textContent=state[ind.key].toFixed(2);
-        range.addEventListener('input', e=>{ state[ind.key]=Number(e.target.value); val.textContent=state[ind.key].toFixed(2); update();});
-        const hint=document.createElement('div'); hint.className='sub'; hint.textContent=ind.hint;
-        const cell=document.createElement('div'); cell.appendChild(range); cell.appendChild(hint);
-        row.appendChild(lab); row.appendChild(cell); row.appendChild(val);
-        wrap.appendChild(row);
+    async function postJSON(path, payload){
+      const res = await fetch(API + path, {
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body: JSON.stringify(payload||{}),
+        mode:'cors'
       });
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      return res.json();
     }
 
-    function update(){
-      const doq=clamp01(state.DoQ);
-      const sci=computeSCI(state);
-      badge(document.getElementById('sciBadge'), bandGAR(sci,{amber:0.55, red:0.70}));
-      badge(document.getElementById('doqBadge'), bandGAR(doq,{amber:0.60, red:0.45, reverse:true}));
-      width(document.getElementById('sciFill'), sci);
-      width(document.getElementById('doqFill'), doq);
-      const {playbook,rationale,exit,phase}=decidePlaybook(sci,doq);
-      const pBadge=document.getElementById('playbookBadge'); const phaseBadge=document.getElementById('phaseBadge'); const advice=document.getElementById('advice');
-      phaseBadge.textContent=phase; phaseBadge.className='badge '+(phase==='STABLE'?'g':phase==='WATCH'?'a':'r');
-      pBadge.textContent=playbook; pBadge.className='badge '+(playbook==='NONE'?'g':playbook==='SOFT'?'a':'r');
-      advice.innerHTML=`<strong>理由</strong>：${rationale}<br/><strong>終了条件</strong>：${exit}`;
-    }
-
-    /* ===== ライブチェック ===== */
-    (async ()=>{
-      if(!LIVE){ liveBadge.textContent='Demo (offline)'; return; }
-      try{
-        const r = await fetch(`${API_BASE}/v1/health`, { mode:'cors' });
-        if(r.ok){ liveBadge.textContent='⚡ Live API'; liveBadge.className='badge g'; }
-        else { liveBadge.textContent='API Unreachable'; liveBadge.className='badge r'; }
-      }catch{ liveBadge.textContent='API Unreachable'; liveBadge.className='badge r'; }
-    })();
-
-    /* ===== ファイル入力 ===== */
-    async function readFiles(fileList){
-      const docs=[];
-      for (const f of fileList){
-        if (f.type.startsWith('text') || /\.(txt|md|csv)$/i.test(f.name)) {
-          docs.push({ type:'text', name:f.name, text: await f.text() });
-        } else if (f.type==='application/json' || /\.json$/i.test(f.name)) {
-          const raw=await f.text(); let json=null; try{ json=JSON.parse(raw);}catch{}
-          docs.push({ type:'json', name:f.name, json, raw });
-        } else if (f.type.startsWith('image/') || /\.(jpg|jpeg|png)$/i.test(f.name)) {
-          docs.push({ type:'image_meta', name:f.name, meta:{ size:f.size, lastModified:f.lastModified, mime:f.type }});
-        } else {
-          docs.push({ type:'file_meta', name:f.name, meta:{ size:f.size, mime:f.type }});
-        }
-      }
-      return docs;
-    }
-
-    function getCurrentIndicatorInputs(){
-      // デモ用の簡易入力（APIがfeatures→scoresを使う場合の例）
-      const pct = k => Math.round(state[k]*100);
+    function buildFeatures(){
+      const g = id => Number(document.getElementById(id)?.value ?? 0);
       return {
-        DoQ:{ questionCount:0, struct:pct('DoQ'), diversity:pct('DoQ'), integration:pct('DoQ') },
-        CCI:{ strength:pct('CCI'), density:pct('CCI'), stability:pct('CCI'), asymmetry:pct('CCI'), transferability:pct('CCI') },
-        RDI:{ branches:6, distance:pct('RDI'), density:pct('RDI'), integration:pct('RDI') },
-        HRI:{ failureAwareness:pct('HRI'), responseSpeed:pct('HRI'), creativity:pct('HRI'), effectiveness:pct('HRI') },
-        TRS:{ fatigue: Math.round((1-state.TRS)*100), recovery:pct('TRS'), reward:pct('TRS'), meaning:pct('TRS') },
-        RVI:{ physical:pct('RVI'), cultural:pct('RVI'), economic:pct('RVI'), resonance:pct('RVI'), sustainability:pct('RVI') },
-        AHI:{ direct:60, indirect:60, selfSatisfaction:60, longTerm:60 }
+        DoQ:{questionCount:g('doq_q'), struct:g('doq_s'), diversity:g('doq_d'), integration:g('doq_i')},
+        TRS:{fatigue:g('trs_f'), recovery:g('trs_r'), reward:g('trs_w'), meaning:g('trs_m')}
       };
     }
 
-    async function callApi(payload){
-      if(!LIVE){
-        // オフラインはダミー揺らぎ
-        const t = payload.documents?.find(d=>d.type==='transcript')?.text || '';
-        const q = (t.match(/\?/g)||[]).length;
-        const bump = Math.min(0.1, q*0.01);
-        const out = {};
-        for (const k of ['DoQ','CCI','RDI','HRI','TRS','RVI','AHI']) out[k] = Math.round(Math.max(0, Math.min(1, state[k] + (k==='DoQ'?bump:0))) * 100);
-        const sci = Math.round((1 - avg(['DoQ','CCI','RDI','HRI','TRS','RVI'].map(k=>out[k]/100))) * 100);
-        return { outputs:{ ...out, SCI:sci, SCI_grade: sci>70?'RED':sci>40?'YELLOW':'GREEN' } };
-      }
-      const headers = { 'content-type':'application/json' };
-      if (KEY) headers['authorization'] = `Bearer ${KEY}`;
-      const r = await fetch(`${API_BASE}/v1/eval`, { method:'POST', mode:'cors', headers, body: JSON.stringify(payload) });
-      if(!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
+    function setOut(o){
+      const put = (id,val)=>{ const el=document.getElementById(id); if(!el) return;
+        if('value' in el) el.value=val; el.textContent=String(val); };
+      if(!o) return;
+      put('out_doq', o.DoQ); put('out_cci', o.CCI); put('out_rdi', o.RDI);
+      put('out_hri', o.HRI); put('out_trs', o.TRS); put('out_rvi', o.RVI);
+      put('out_ahi', o.AHI); put('out_sci', o.SCI);
+      const g = document.getElementById('out_grade'); if(g) g.textContent = o.SCI_grade||'';
     }
 
-    document.getElementById('btnAnalyze').addEventListener('click', async ()=>{
-      const text = document.getElementById('inpText').value || '';
-      const files = document.getElementById('inpFiles').files || [];
-      const docs = await readFiles(files);
-      const payload = {
-        context:{ locale:'ja-JP', scenario:'generic', source:['ui', text?'transcript':null, files.length?'attachments':null].filter(Boolean) },
-        inputs: getCurrentIndicatorInputs(),
-        documents:[ ...(text?[{type:'transcript', name:'pasted', text}]:[]), ...docs ]
-      };
-      document.getElementById('debugPayload').textContent = JSON.stringify({ ...payload, documents: payload.documents.slice(0,3) }, null, 2);
+    async function analyzeFeatures(){
+      const out = await postJSON('/api/score', { inputs: buildFeatures() });
+      setOut(out.outputs);
+      console.log('[LoPAS] features→scores', out);
+    }
 
-      try{
-        const res = await callApi(payload);
-        // ★ ここが重要：APIの outputs をすべて UI に反映
-        const out = res?.outputs || {};
-        for (const k of ['DoQ','CCI','RDI','HRI','TRS','RVI','AHI']){
-          if (out[k] != null) state[k] = Math.max(0, Math.min(1, Number(out[k])/100));
-        }
-        update();
-      }catch(e){
-        alert('Analyze failed: '+e.message);
-        liveBadge.textContent='API Error'; liveBadge.className='badge r';
-      }
-    });
-
-    document.getElementById('btnExport').addEventListener('click', ()=>{
-      const snapshot = {
-        timestamp: new Date().toISOString(),
-        indicators: { ...state, SCI: computeSCI(state) },
-        decision: decidePlaybook(computeSCI(state), state.DoQ)
-      };
-      document.getElementById('jsonOut').textContent = JSON.stringify(snapshot, null, 2);
-    });
-
-    // 起動
-    renderRows(); update();
+    // scores直渡しは Part 2 で実装
+    document.getElementById('btn_features')?.addEventListener('click', analyzeFeatures);
+    document.getElementById('btn_scores')?.addEventListener('click', ()=>alert('Part 2 で有効化します'));
+    window.__LOPAS_API__ = { analyzeFeatures }; // デバッグ用
+  })();
   </script>
 </body>
 </html>
+
