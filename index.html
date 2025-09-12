@@ -1,110 +1,99 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>LoPAS PKO Demo (UI → Cloudflare API)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LoPAS Demo — Document → Scores (Bar Chart)</title>
 <style>
   :root{--bg:#0b1020;--card:#121831;--muted:#9fb0d9;--text:#e9f0ff;--ok:#2fd47a;--warn:#ffb020;--bad:#ff5d6c;--br:rgba(255,255,255,.12)}
   *{box-sizing:border-box;font-family:system-ui,Segoe UI,Roboto,"Noto Sans JP",sans-serif}
   body{margin:0;background:radial-gradient(1200px 600px at 70% -200px,#1a254b 0%,#0b1020 55%,#0a0f1f 100%);color:var(--text)}
-  header{padding:24px 16px 6px;max-width:1100px;margin:0 auto}
+  header{padding:22px 16px 8px;max-width:1100px;margin:0 auto}
   h1{margin:0 0 6px;font-size:clamp(18px,3vw,26px)}
   .sub{color:var(--muted);font-size:13px}
-  main{max-width:1100px;margin:0 auto;padding:12px 16px 60px;display:grid;gap:14px;grid-template-columns:1.1fr .9fr}
+  main{max-width:1100px;margin:0 auto;padding:12px 16px 60px;display:grid;gap:14px;grid-template-columns:1.05fr .95fr}
   @media (max-width:980px){main{grid-template-columns:1fr}}
   .card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.015));border:1px solid var(--br);border-radius:16px;padding:14px}
-  .grid{display:grid;grid-template-columns:160px 1fr 60px;gap:10px;align-items:center}
+  textarea,input,button{background:#101735;color:#e9f0ff;border:1px solid var(--br);border-radius:10px}
+  textarea{width:100%;min-height:140px;padding:10px}
   .row{display:grid;grid-template-columns:150px 1fr 80px;gap:10px;align-items:center;margin:8px 0}
-  input[type=range],input[type=number],textarea{width:100%}
-  textarea{min-height:120px;background:#101735;color:#e9f0ff;border:1px solid var(--br);border-radius:10px;padding:8px}
-  input,button{background:#101735;color:#e9f0ff;border:1px solid var(--br);border-radius:10px;padding:8px}
   .btn{padding:10px 14px;border-radius:12px;background:#1f2b54;cursor:pointer}
   .btn.secondary{background:#0f1635}
-  .badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-weight:700;font-size:12px;margin:2px;border:1px solid var(--br)}
+  .muted{color:var(--muted)}
+  .mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;color:#cae0ff}
+  .badge{display:inline-block;border-radius:999px;padding:4px 10px;font-weight:700;font-size:12px;margin:2px;border:1px solid var(--br)}
   .g{background:rgba(47,212,122,.15);color:#bdf3d6;border-color:rgba(47,212,122,.35)}
   .a{background:rgba(255,176,32,.15);color:#ffe3b3;border-color:rgba(255,176,32,.35)}
   .r{background:rgba(255,93,108,.15);color:#ffd0d4;border-color:rgba(255,93,108,.35)}
-  .meter{height:10px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden}
-  .fill{height:100%;background:linear-gradient(90deg,#36d39e,#2a9df4);width:0%}
-  .mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;color:#cae0ff}
-  .muted{color:var(--muted)}
   .err{display:none;border:1px solid #f2b8b5;background:#ffecec;color:#851d19;border-radius:8px;padding:8px 10px;margin:8px 0}
+  details{margin-top:12px}
+  details summary{cursor:pointer;user-select:none}
+  canvas{width:100%;height:280px;display:block;background:rgba(255,255,255,.02);border:1px solid var(--br);border-radius:12px}
+  .kpi{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
 </style>
 </head>
 <body>
 <header>
-  <h1>LoPAS PKO Demo (UI → API JSON)</h1>
+  <h1>LoPAS — 文章から自己理解（棒グラフ）</h1>
   <div class="sub">
-    API: <span id="api_url"></span>　例：<code>?live=1&api=https://icy-wave-e70d.hanabokur0.workers.dev</code>
+    ①文章を貼る → ②「解析」 → ③DoQ/CCI/TRS/RVI…を棒グラフで可視化。<br>
+    API: <span id="api_url"></span> ／ 例：<code>?api=https://icy-wave-e70d.hanabokur0.workers.dev</code>
   </div>
 </header>
 
 <main>
-  <!-- 左：入力 -->
+  <!-- 左：生活者の“種”（ドキュメント入力） -->
   <section class="card">
-    <h3>Inputs (features)</h3>
-    <div class="grid">
-      <span>DoQ: questionCount</span><input id="doq_q" type="range" min="0" max="12" value="10"/><span id="doq_q_v">10</span>
-      <span>DoQ: struct</span><input id="doq_s" type="range" min="0" max="100" value="70"/><span id="doq_s_v">70</span>
-      <span>DoQ: diversity</span><input id="doq_d" type="range" min="0" max="100" value="60"/><span id="doq_d_v">60</span>
-      <span>DoQ: integration</span><input id="doq_i" type="range" min="0" max="100" value="80"/><span id="doq_i_v">80</span>
-      <span>TRS: fatigue</span><input id="trs_f" type="range" min="0" max="100" value="30"/><span id="trs_f_v">30</span>
-      <span>TRS: recovery</span><input id="trs_r" type="range" min="0" max="100" value="70"/><span id="trs_r_v">70</span>
-      <span>TRS: reward</span><input id="trs_w" type="range" min="0" max="100" value="60"/><span id="trs_w_v">60</span>
-      <span>TRS: meaning</span><input id="trs_m" type="range" min="0" max="100" value="80"/><span id="trs_m_v">80</span>
+    <h3>文章（今日の状況・メモ・議事録など）</h3>
+    <textarea id="doc_text" placeholder="ここに文章を貼る。例：今日は会議でA案とB案の比較をした。課題は～？ 休息が足りておらず集中が…"></textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn" id="btn_docs">解析（documents → heuristic）</button>
+      <button class="btn secondary" id="btn_demo">デモ値で確認</button>
+      <span class="muted" id="hint">ヒント：まず短いメモでもOK。DoQは「?」の密度で少し動きます。</span>
     </div>
-    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn" id="btn_features">解析（features→scores）</button>
-      <button class="btn secondary" id="btn_scores">解析（scores直渡し）</button>
-    </div>
-
-    <div class="card" style="margin-top:12px">
-      <h4>Scores (direct)</h4>
-      <div class="grid">
-        <span>DoQ</span><input id="s_doq" type="number" min="0" max="100" value="60"/><span></span>
-        <span>CCI</span><input id="s_cci" type="number" min="0" max="100" value="61"/><span></span>
-        <span>RDI</span><input id="s_rdi" type="number" min="0" max="100" value="62"/><span></span>
-        <span>HRI</span><input id="s_hri" type="number" min="0" max="100" value="55"/><span></span>
-        <span>TRS</span><input id="s_trs" type="number" min="0" max="100" value="59"/><span></span>
-        <span>RVI</span><input id="s_rvi" type="number" min="0" max="100" value="50"/><span></span>
-        <span>AHI</span><input id="s_ahi" type="number" min="0" max="100" value="54"/><span></span>
-      </div>
-      <button class="btn secondary" id="btn_scores2">送信（scores直渡し）</button>
-    </div>
-
-    <div class="card" style="margin-top:12px">
-      <h4>Documents (heuristic)</h4>
-      <textarea id="doc_text" placeholder="ここに文章を貼り付け → heuristic 推定"></textarea>
-      <button class="btn secondary" id="btn_docs">解析（documents→heuristic）</button>
-    </div>
-
     <div id="err" class="err"></div>
+
+    <details>
+      <summary>研究者向け（任意）: features / scores を直接送る</summary>
+      <div class="row"><span>DoQ: questionCount</span><input id="doq_q" type="range" min="0" max="12" value="6"><span id="doq_q_v">6</span></div>
+      <div class="row"><span>DoQ: struct</span><input id="doq_s" type="range" min="0" max="100" value="60"><span id="doq_s_v">60</span></div>
+      <div class="row"><span>DoQ: diversity</span><input id="doq_d" type="range" min="0" max="100" value="55"><span id="doq_d_v">55</span></div>
+      <div class="row"><span>DoQ: integration</span><input id="doq_i" type="range" min="0" max="100" value="70"><span id="doq_i_v">70</span></div>
+      <div class="row"><span>TRS: fatigue</span><input id="trs_f" type="range" min="0" max="100" value="30"><span id="trs_f_v">30</span></div>
+      <div class="row"><span>TRS: recovery</span><input id="trs_r" type="range" min="0" max="100" value="70"><span id="trs_r_v">70</span></div>
+      <div class="row"><span>TRS: reward</span><input id="trs_w" type="range" min="0" max="100" value="60"><span id="trs_w_v">60</span></div>
+      <div class="row"><span>TRS: meaning</span><input id="trs_m" type="range" min="0" max="100" value="80"><span id="trs_m_v">80</span></div>
+      <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+        <button class="btn secondary" id="btn_features">解析（features→scores）</button>
+        <button class="btn secondary" id="btn_scores">送信（scores直渡し）</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:8px">
+        <input id="s_doq" type="number" min="0" max="100" value="58" title="DoQ">
+        <input id="s_cci" type="number" min="0" max="100" value="62" title="CCI">
+        <input id="s_rdi" type="number" min="0" max="100" value="60" title="RDI">
+        <input id="s_hri" type="number" min="0" max="100" value="55" title="HRI">
+        <input id="s_trs" type="number" min="0" max="100" value="61" title="TRS">
+        <input id="s_rvi" type="number" min="0" max="100" value="50" title="RVI">
+        <input id="s_ahi" type="number" min="0" max="100" value="54" title="AHI">
+      </div>
+    </details>
   </section>
 
-  <!-- 右：出力 -->
+  <!-- 右：自己理解の鏡（棒グラフ＋解説） -->
   <section class="card">
-    <h3>Outputs</h3>
-    <div class="grid">
-      <span>DoQ</span><span id="out_doq">—</span><span></span>
-      <span>CCI</span><span id="out_cci">—</span><span></span>
-      <span>RDI</span><span id="out_rdi">—</span><span></span>
-      <span>HRI</span><span id="out_hri">—</span><span></span>
-      <span>TRS</span><span id="out_trs">—</span><span></span>
-      <span>RVI</span><span id="out_rvi">—</span><span></span>
-      <span>AHI</span><span id="out_ahi">—</span><span></span>
-      <span>SCI</span>
-      <div>
-        <div class="meter"><div id="sciFill" class="fill"></div></div>
-      </div>
-      <span id="out_grade" class="badge g">—</span>
+    <h3>結果（自己理解）</h3>
+    <canvas id="barChart" width="640" height="280"></canvas>
+    <div class="kpi">
+      <span class="badge g" id="gradeBadge">SCI: —</span>
+      <span class="badge g" id="phaseBadge">PHASE: —</span>
+      <span class="badge g" id="playBadge">PLAYBOOK: —</span>
     </div>
-    <div id="judgment_wrap" style="margin-top:10px;display:none">
-      <div class="badge g" id="phaseBadge">STABLE</div>
-      <div class="badge g" id="playbookBadge">NONE</div>
-      <div class="mono" id="advice" style="margin-top:6px"></div>
-    </div>
-    <div class="mono" id="raw" style="margin-top:12px"></div>
+    <div id="advice" class="mono"></div>
+
+    <details style="margin-top:12px">
+      <summary>APIレスポンス（確認用）</summary>
+      <pre id="raw" class="mono"></pre>
+    </details>
   </section>
 </main>
 
@@ -120,18 +109,63 @@
   async function postJSON(path,payload){
     try{
       const res = await fetch(API+path,{ method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(payload), mode:'cors' });
-      const txt = await res.text(); // for debug safety
+      const txt = await res.text();
       let data; try{ data = JSON.parse(txt); } catch{ throw new Error('Bad JSON: '+txt.slice(0,200)); }
       if(!res.ok) throw new Error('HTTP '+res.status);
-      document.getElementById('raw').textContent = JSON.stringify(data, null, 2); // debug view
+      document.getElementById('raw').textContent = JSON.stringify(data, null, 2);
       return data;
     }catch(e){ showErr(e.message||String(e)); throw e; }
   }
-  const put = (id,val)=>{ const el=document.getElementById(id); if(!el) return; el.textContent = (val==null?'—':String(val)); };
+  const mirror = (id)=>{ const el=document.getElementById(id), v=document.getElementById(id+'_v'); if(el&&v){ el.addEventListener('input',()=>v.textContent=el.value); v.textContent=el.value; } };
+  ['doq_q','doq_s','doq_d','doq_i','trs_f','trs_r','trs_w','trs_m'].forEach(mirror);
 
-  // slider value mirror
-  for(const id of ['doq_q','doq_s','doq_d','doq_i','trs_f','trs_r','trs_w','trs_m']){
-    const el=document.getElementById(id), v=document.getElementById(id+'_v'); if(el&&v){ el.addEventListener('input',()=>v.textContent=el.value); v.textContent=el.value; }
+  // === drawing (simple vanilla canvas bar chart) ===
+  function band(val){ return val>=70?'r':val>=55?'a':'g'; }
+  function drawBarChart(ctx, series){
+    const W=ctx.canvas.width, H=ctx.canvas.height;
+    ctx.clearRect(0,0,W,H);
+    // axes
+    ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(50,20); ctx.lineTo(50,H-30); ctx.lineTo(W-10,H-30); ctx.stroke();
+    // y labels
+    ctx.fillStyle='rgba(202,224,255,.8)'; ctx.font='12px ui-monospace';
+    for(let y=0;y<=100;y+=20){ const yy=map(y,0,100,H-30,20); ctx.fillText(String(y), 12, yy+4); ctx.globalAlpha=0.15; ctx.beginPath(); ctx.moveTo(50,yy); ctx.lineTo(W-10,yy); ctx.stroke(); ctx.globalAlpha=1; }
+    // bars
+    const keys=['DoQ','CCI','RDI','HRI','TRS','RVI','AHI'];
+    const vals=keys.map(k=>series[k]).map(v=>Number.isFinite(+v)?+v:0);
+    const n=keys.length, gap=14; const barW=((W-70)-(n-1)*gap)/n;
+    for(let i=0;i<n;i++){
+      const x=50+i*(barW+gap), v=vals[i], y=map(v,0,100,H-30,20);
+      const col = (v>=70)?'#ff5d6c':(v>=55)?'#ffb020':'#2fd47a';
+      ctx.fillStyle=col; ctx.fillRect(x, y, barW, (H-30)-y);
+      ctx.fillStyle='rgba(233,240,255,.9)'; ctx.font='12px ui-monospace';
+      ctx.fillText(keys[i], x, H-14);
+      ctx.fillText(String(v), x+barW-22, y-6);
+    }
+  }
+  function map(v, a1,b1, a2,b2){ return a2+(v-a1)*(b2-a2)/(b1-a1); }
+
+  function render(out){
+    // chart
+    const ctx = document.getElementById('barChart').getContext('2d');
+    drawBarChart(ctx, out||{});
+
+    // badges
+    const grade = (out.SCI_grade||'—'); const sci = (out.SCI!=null? out.SCI : '—');
+    const gb = document.getElementById('gradeBadge');
+    gb.textContent = `SCI: ${sci} (${grade})`;
+    gb.className = 'badge ' + (grade==='RED'?'r':grade==='YELLOW'?'a':'g');
+
+    const phase = out.SCI>=70?'CRITICAL':out.SCI>=55?'WATCH':(out.SCI!=null?'STABLE':'—');
+    const play  = out.SCI>=70?'HARD':out.SCI>=55?'SOFT':(out.SCI!=null?'NONE':'—');
+    const pb = document.getElementById('playBadge'), ph = document.getElementById('phaseBadge');
+    pb.textContent = `PLAYBOOK: ${play}`; pb.className='badge '+(play==='HARD'?'r':play==='SOFT'?'a':'g');
+    ph.textContent = `PHASE: ${phase}`;  ph.className='badge '+(phase==='CRITICAL'?'r':phase==='WATCH'?'a':'g');
+
+    // advice
+    const adv = document.getElementById('advice');
+    if(out.judgment){ adv.innerHTML = (out.judgment.bullets||[]).map(x=>'• '+x).join('\n'); }
+    else { adv.textContent = '—'; }
   }
 
   // === payload builders ===
@@ -145,35 +179,28 @@
     return { DoQ:g('s_doq'), CCI:g('s_cci'), RDI:g('s_rdi'), HRI:g('s_hri'), TRS:g('s_trs'), RVI:g('s_rvi'), AHI:g('s_ahi') };
   }
 
-  // === render ===
-  function band(v){ return v>=70?'r':v>=55?'a':'g'; }
-  function render(out){
-    put('out_doq',out.DoQ); put('out_cci',out.CCI); put('out_rdi',out.RDI);
-    put('out_hri',out.HRI); put('out_trs',out.TRS); put('out_rvi',out.RVI);
-    put('out_ahi',out.AHI); put('out_sci',out.SCI);
-    const fill=document.getElementById('sciFill'); if(fill&&out.SCI!=null) fill.style.width = Math.max(0,Math.min(100,Number(out.SCI)))+'%';
-    const grade=document.getElementById('out_grade'); if(grade){ grade.textContent = out.SCI_grade||'—'; grade.className='badge '+(out.SCI_grade==='RED'?'r':out.SCI_grade==='YELLOW'?'a':'g'); }
-    const wrap=document.getElementById('judgment_wrap'), phase=document.getElementById('phaseBadge'), play=document.getElementById('playbookBadge'), adv=document.getElementById('advice');
-    if(out.judgment){ wrap.style.display='block'; adv.textContent = (out.judgment.bullets||[]).map(x=>'• '+x).join('\n');
-      const ph = out.SCI>=70?'CRITICAL':out.SCI>=55?'WATCH':'STABLE';
-      const pb = out.SCI>=70?'HARD':out.SCI>=55?'SOFT':'NONE';
-      phase.textContent=ph; phase.className='badge '+(ph==='CRITICAL'?'r':ph==='WATCH'?'a':'g');
-      play.textContent=pb; play.className='badge '+(pb==='HARD'?'r':pb==='SOFT'?'a':'g');
-    } else { wrap.style.display='none'; }
-  }
-
   // === actions ===
+  async function runDocs(){
+    const txt = (document.getElementById('doc_text').value||'').trim();
+    const payload = txt ? { documents:[{text:txt}] } : { documents:[{text:"今日は会議？A案B案？ 疲労感が強く、短時間の回復を優先したい。"}] };
+    const out = await postJSON('/api/score', payload);
+    render(out.outputs||{});
+  }
   async function runFeatures(){ const out = await postJSON('/api/score', { inputs: buildFeatures() }); render(out.outputs||{}); }
   async function runScores(){ const out = await postJSON('/api/score', { scores: buildScores() }); render(out.outputs||{}); }
-  async function runDocs(){
-    const txt = (document.getElementById('doc_text').value||'').trim(); if(!txt) return;
-    const out = await postJSON('/api/score', { documents:[{text:txt}] }); render(out.outputs||{});
-  }
 
-  document.getElementById('btn_features')?.addEventListener('click', runFeatures);
-  document.getElementById('btn_scores')?.addEventListener('click', runScores);
-  document.getElementById('btn_scores2')?.addEventListener('click', runScores);
-  document.getElementById('btn_docs')?.addEventListener('click', runDocs);
+  document.getElementById('btn_docs').addEventListener('click', runDocs);
+  document.getElementById('btn_demo').addEventListener('click', runDocs);
+  document.getElementById('btn_features').addEventListener('click', runFeatures);
+  document.getElementById('btn_scores').addEventListener('click', runScores);
+
+  // 初期描画（空データの棒グラフ）
+  render({});
+})();
+</script>
+</body>
+</html>
+
 })();
 </script>
 </body>
