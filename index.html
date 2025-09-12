@@ -125,5 +125,120 @@
       }
     });
   </script>
+  <script>
+  // ==== API ====
+  const API = "https://icy-wave-e70d.hanabokur0.workers.dev";
+
+  async function postJSON(path, payload){
+    const res = await fetch(API+path,{
+      method:"POST",
+      headers:{ "content-type":"application/json" },
+      body: JSON.stringify(payload),
+      mode:"cors"
+    });
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    return await res.json();
+  }
+
+  // ==== Lifestyle 計算（クライアント側で軸→scoresにする） ====
+  function normalize(v){ const s=Object.values(v).reduce((a,b)=>a+b,0)||1; const o={}; for(const k in v)o[k]=(v[k]||0)/s; return o; }
+
+  function computeFromForm(){
+    // STEP1: 配分
+    const q0 = {
+      work:     Number(document.getElementById("q_work").value||0),
+      rest:     Number(document.getElementById("q_rest").value||0),
+      creative: Number(document.getElementById("q_creative").value||0),
+      social:   Number(document.getElementById("q_social").value||0),
+    };
+    const wcat = normalize({ Work:q0.work, Rest:q0.rest, Creative:q0.creative, Social:q0.social });
+
+    // STEP3: モジュレータ（使わないが将来のバイアス用に保持）
+    const M = {
+      fast:     Number(document.getElementById("m_fast").value||0),
+      low_cost: Number(document.getElementById("m_cost").value||0),
+      privacy:  Number(document.getElementById("m_priv").value||0),
+    };
+
+    // Lifestyle 軸（テンプレ準拠・最小版）
+    // TRS は rec/depth/dur を合成して1本に畳み込む（重みは暫定 0.4/0.3/0.3）
+    const eps = 0.5;
+    const ax = { DoQ:0, CCI:0, CRI:0, TRS_rec:0, TRS_depth:0, TRS_dur:0, RVI:0 };
+
+    // 簡略マッピング（テンプレ2章の要旨を最小で反映）
+    // Work     → DoQ, CCI, TRS_dur
+    ax.DoQ      += wcat.Work * (2 + eps);
+    ax.CCI      += wcat.Work * (2 + eps);
+    ax.TRS_dur  += wcat.Work * (1 + eps);
+
+    // Rest     → TRS_rec, TRS_depth, TRS_dur
+    ax.TRS_rec  += wcat.Rest * (2 + eps);
+    ax.TRS_depth+= wcat.Rest * (2 + eps);
+    ax.TRS_dur  += wcat.Rest * (1 + eps);
+
+    // Creative → DoQ, CCI, CRI, TRS_dur
+    ax.DoQ      += wcat.Creative * (1 + eps);
+    ax.CCI      += wcat.Creative * (1 + eps);
+    ax.CRI      += wcat.Creative * (1 + eps);
+    ax.TRS_dur  += wcat.Creative * (1 + eps);
+
+    // Social   → CRI, CCI, RVI
+    ax.CRI      += wcat.Social * (2 + eps);
+    ax.CCI      += wcat.Social * (1 + eps);
+    ax.RVI      += wcat.Social * (1 + eps);
+
+    // 正規化して 0..1 に落とす
+    const sum = Object.values(ax).reduce((a,b)=>a+b,0)||1;
+    for(const k in ax) ax[k] = ax[k]/sum;
+
+    // TRS 合成
+    const TRS = 0.4*ax.TRS_rec + 0.3*ax.TRS_depth + 0.3*ax.TRS_dur;
+
+    // Worker の Bモードへ渡す 0..100 scores
+    const scores = {
+      DoQ: Math.round(ax.DoQ*100),
+      CCI: Math.round(ax.CCI*100),
+      CRI: Math.round(ax.CRI*100),
+      TRS: Math.round(TRS*100),
+      RVI: Math.round(ax.RVI*100)
+    };
+
+    return { q0, M, scores };
+  }
+
+  // ==== 描画 ====
+  function renderOutputs(o){
+    const b = document.getElementById("out_badges");
+    const adv = document.getElementById("out_advice");
+    const raw = document.getElementById("out_json");
+    b.innerHTML = ""; adv.innerHTML = ""; raw.textContent = "";
+
+    const band = v => v>=70 ? 'r' : v>=50 ? 'a' : 'g';
+    for(const k of ["DoQ","CCI","CRI","TRS","RVI","SCI"]){
+      if(o[k]==null) continue;
+      const span=document.createElement("span");
+      span.className = "badge "+band(o[k]);
+      span.textContent = `${k}: ${o[k]}`;
+      b.appendChild(span);
+    }
+    if(o.judgment){
+      adv.innerHTML = `<strong>${o.judgment.label}</strong><br>` +
+        (o.judgment.bullets||[]).map(x=>"• "+x).join("<br>");
+    }
+    raw.textContent = JSON.stringify(o, null, 2);
+  }
+
+  // ==== 送信 ====
+  document.getElementById("submitBtn").addEventListener("click", async ()=>{
+    try{
+      const {scores} = computeFromForm();
+      // ★ ここが肝：documents ではなく scores を渡す（APIのBモード）
+      const res = await postJSON("/api/score", { scores });
+      renderOutputs(res.outputs || {});
+    }catch(e){
+      alert("Error: "+e.message);
+    }
+  });
+</script>
 </body>
 </html>
