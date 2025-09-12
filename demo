@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LoPAS Real‑Time Demo (PKO / Policy‑as‑Code)</title>
+  <title>LoPAS Real-Time Demo (PKO / Policy-as-Code)</title>
   <style>
     :root{--bg:#0b1020;--card:#121831;--muted:#9fb0d9;--text:#e9f0ff;--ok:#2fd47a;--warn:#ffb020;--bad:#ff5d6c}
     *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif}
@@ -29,26 +29,45 @@
     .callout{border-left:4px solid #3aa5ff;background:rgba(58,165,255,.08);padding:10px 12px;border-radius:8px}
     button{background:#1f2b54;border:1px solid rgba(255,255,255,.12);color:#d9e6ff;padding:10px 14px;border-radius:12px;cursor:pointer}
     button:hover{filter:brightness(1.1)}
+    textarea{width:100%;min-height:120px;background:#0f1733;color:#e9f0ff;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px}
+    .topbar{display:flex;gap:8px;align-items:center;margin:8px 0 0}
+    .pill{border:1px solid rgba(47,212,122,.4);color:#bdf3d6;background:rgba(47,212,122,.12);border-radius:999px;padding:4px 10px;font-size:12px}
+    .muted{color:var(--muted)}
+    .err{display:none;margin-top:8px;border:1px solid rgba(255,93,108,.35);color:#ffd0d4;background:rgba(255,93,108,.12);padding:8px 10px;border-radius:8px}
   </style>
 </head>
 <body>
   <header>
-    <h1>LoPAS Real‑Time Demo (PKO / Indicators × Policy‑as‑Code)</h1>
-    <div class="sub">Move the sliders (0.00–1.00). The app recomputes SCI (demo formula) and recommends a playbook (Soft/Medium/Hard) with a clear exit condition.<br/>* All formulas & thresholds are demo‑grade. Replace via adapters for each country.</div>
+    <h1>LoPAS Real-Time Demo (PKO / Indicators × Policy-as-Code)</h1>
+    <div class="sub">Paste a transcript or move the sliders, then click <strong>Analyze (API)</strong>. API recomputes indicators server-side on Cloudflare Workers.<br/>* Demo formulas only. Replace via adapters.</div>
+    <div class="topbar">
+      <span class="pill" id="apiPill">Live API</span>
+      <span class="muted mono">API: <span id="api_url"></span></span>
+    </div>
   </header>
 
   <main class="wrap">
+    <!-- Left column -->
     <section class="card">
-      <h3 style="margin:4px 0 10px">Indicators</h3>
+      <h3 style="margin:4px 0 10px">Input (Transcript / Minutes)</h3>
+      <textarea id="docInput" placeholder="Paste conversation / minutes…"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button id="analyzeBtn">Analyze (API)</button>
+        <button id="exportBtn">Export Snapshot (JSON)</button>
+        <span id="err" class="err">Error</span>
+      </div>
+
+      <h3 style="margin:16px 0 10px">Indicators</h3>
       <div id="rows"></div>
+
       <div class="grid2" style="margin-top:14px">
         <div class="card">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-            <strong>Composite Risk (SCI, demo)</strong>
+            <strong>Composite Risk (SCI)</strong>
             <span id="sciBadge" class="badge g">GREEN</span>
           </div>
           <div class="meter" style="margin-top:10px"><div id="sciFill" class="fill"></div></div>
-          <div class="sub" style="margin-top:8px">SCI is an inverse‑weighted mix of CCI, DoQ, RDI, HRI, TRS, RVI (demo). Higher = higher collapse risk.</div>
+          <div class="sub" style="margin-top:8px">SCI is inverse-weighted mix of CCI, DoQ, RDI, HRI, TRS, RVI. Higher = higher collapse risk.</div>
         </div>
         <div class="card">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
@@ -61,147 +80,169 @@
       </div>
     </section>
 
+    <!-- Right column -->
     <section class="card">
       <h3 style="margin:4px 0 10px">Recommended Intervention</h3>
       <div id="advice" class="callout">—</div>
       <div class="kpi">
         <span id="phaseBadge" class="badge g">STABLE</span>
         <span id="playbookBadge" class="badge g">NONE</span>
+        <span id="gradeBadge" class="badge g">GREEN</span>
       </div>
       <div style="margin-top:12px">
-        <button id="exportBtn">Export Snapshot (JSON)</button>
+        <div class="mono" id="jsonOut"></div>
       </div>
-      <div id="jsonOut" class="mono" style="margin-top:10px"></div>
     </section>
   </main>
 
   <script>
-    // ===== Demo weights (editable) =====
-    const weights = { DoQ:0.22, CCI:0.18, RDI:0.14, HRI:0.10, TRS:0.10, RVI:0.06 };
+    // ===== Config/API =====
+    const qs = (k)=> new URLSearchParams(location.search).get(k);
+    const API = (qs('api') || 'https://icy-wave-e70d.hanabokur0.workers.dev').replace(/\/+$/,'');
+    document.getElementById('api_url').textContent = API;
+
+    // ===== UI state =====
     const INDICATORS = [
-      {key:"DoQ", label:"DoQ (Density of Questions)", hint:"Higher is healthier"},
-      {key:"CCI", label:"CCI (Connectivity)", hint:"Higher is healthier"},
-      {key:"RDI", label:"RDI (Reasoning Divergence)", hint:"Higher is healthier"},
-      {key:"HRI", label:"HRI (Hypothesis Reframing)", hint:"Higher is healthier"},
-      {key:"TRS", label:"TRS (Total Resonant Score)", hint:"Higher is healthier"},
-      {key:"RVI", label:"RVI (Restoration Value Index)", hint:"Higher is healthier"}
+      {key:"DoQ", label:"DoQ (Density of Questions)"},
+      {key:"CCI", label:"CCI (Connectivity)"},
+      {key:"RDI", label:"RDI (Reasoning Divergence)"},
+      {key:"HRI", label:"HRI (Hypothesis Reframing)"},
+      {key:"TRS", label:"TRS (Total Resonant Score)"},
+      {key:"RVI", label:"RVI (Restoration Value Index)"}
     ];
-
     const state = Object.fromEntries(INDICATORS.map(d=>[d.key,0.65]));
+    let lastOutputs = null; // APIから返った値（0..100）
 
-    function clamp01(x){return Math.max(0, Math.min(1, x));}
+    // ===== Helpers =====
+    const clamp01 = x => Math.max(0, Math.min(1, x));
+    const toPct = u01 => Math.round(clamp01(u01) * 100);
+    const toUnit = pct => clamp01((Number(pct)||0) / 100);
 
-    function computeSCI(s){
-      // Inverse-weighted sum (demo): higher = worse
-      const inv = (k)=>1 - clamp01(s[k]);
-      let score = 0;
-      score += inv('CCI') * weights.CCI;
-      score += inv('DoQ') * weights.DoQ;
-      score += inv('RDI') * weights.RDI;
-      score += inv('HRI') * weights.HRI;
-      score += inv('TRS') * weights.TRS;
-      score += inv('RVI') * weights.RVI;
-      const wsum = Object.values(weights).reduce((a,b)=>a+b,0);
-      return clamp01(score / wsum);
-    }
+    function badge(el, band){ el.classList.remove('g','a','r'); el.textContent = band;
+      el.classList.add(band==='GREEN'?'g':band==='YELLOW'?'a':'r'); }
+    function width(el, v01){ el.style.width = (100*clamp01(v01)).toFixed(1) + '%'; }
 
-    function bandGAR(score, {amber, red, reverse=false}){
-      const v = score;
-      if(!reverse){
-        if(v >= red) return 'RED';
-        if(v >= amber) return 'AMBER';
-        return 'GREEN';
-      } else {
-        if(v <= red) return 'RED';
-        if(v <= amber) return 'AMBER';
-        return 'GREEN';
-      }
-    }
-
-    function decidePlaybook(sci, doq){
-      const sciBand = bandGAR(sci, {amber:0.55, red:0.70});
-      const doqBand = bandGAR(doq, {amber:0.60, red:0.45, reverse:true});
-      let playbook = 'NONE', rationale = '', exit='—', phase='STABLE';
-
-      if(sciBand==='RED' && doqBand==='RED'){
-        playbook='HARD'; phase='CRITICAL';
-        rationale='High structural collapse risk + low DoQ. Short‑term hard interventions: public safety, emergency resource reallocation, misinformation containment.';
-        exit='Hold SCI < AMBER for 72h AND DoQ ≥ 0.55';
-      } else if(sciBand!=='GREEN' && doqBand==='RED'){
-        playbook='MEDIUM'; phase='UNSTABLE';
-        rationale='Branching deficit is the primary driver. Prioritize education, open deliberation, and reframing workshops.';
-        exit='Hold DoQ ≥ 0.60 for 48h';
-      } else if(sciBand==='AMBER' || doqBand==='AMBER'){
-        playbook='SOFT'; phase='WATCH';
-        rationale='Early warning. Improve information hygiene, analyze false alarms, minor resource re‑allocation.';
-        exit='SCI < AMBER AND DoQ ≥ 0.60 for 24h';
-      } else {
-        rationale='Stable. Monitoring only. Weekly micro‑tuning of weights & rules recommended.';
-      }
-      return {playbook, rationale, exit, phase, sciBand, doqBand};
-    }
-
-    function badge(el, band){
-      el.classList.remove('g','a','r');
-      el.textContent = band;
-      el.classList.add(band==='GREEN'?'g':band==='AMBER'?'a':'r');
-    }
-
-    function width(el, v){ el.style.width = (100*v).toFixed(1) + '%'; }
-
+    // ===== Rendering (sliders) =====
     function renderRows(){
-      const wrap = document.getElementById('rows');
-      wrap.innerHTML='';
+      const wrap = document.getElementById('rows'); wrap.innerHTML='';
       INDICATORS.forEach(ind =>{
-        const row = document.createElement('div');
-        row.className='row';
+        const row = document.createElement('div'); row.className='row';
         const lab = document.createElement('label'); lab.textContent=ind.label;
         const range = document.createElement('input');
         range.type='range'; range.min='0'; range.max='1'; range.step='0.01'; range.value=state[ind.key];
         const val = document.createElement('div'); val.style.textAlign='right'; val.textContent=state[ind.key].toFixed(2);
         range.addEventListener('input', e=>{ state[ind.key]=Number(e.target.value); val.textContent=state[ind.key].toFixed(2); update();});
-        const hint = document.createElement('div'); hint.className='sub'; hint.textContent=ind.hint;
-        const cell = document.createElement('div'); cell.appendChild(range); cell.appendChild(hint);
+        const cell = document.createElement('div'); cell.appendChild(range);
         row.appendChild(lab); row.appendChild(cell); row.appendChild(val);
         wrap.appendChild(row);
       });
     }
 
+    // ===== Local display update (uses lastOutputs if exists) =====
     function update(){
-      const doq = clamp01(state.DoQ);
-      const sci = computeSCI(state);
-      const sciBand = bandGAR(sci,{amber:0.55, red:0.70});
-      const doqBand = bandGAR(doq,{amber:0.60, red:0.45, reverse:true});
-      badge(document.getElementById('sciBadge'), sciBand);
-      badge(document.getElementById('doqBadge'), doqBand);
-      width(document.getElementById('sciFill'), sci);
-      width(document.getElementById('doqFill'), doq);
+      const use = lastOutputs
+        ? { // API値 (0..100) を 0..1 に
+            DoQ:toUnit(lastOutputs.DoQ), CCI:toUnit(lastOutputs.CCI),
+            RDI:toUnit(lastOutputs.RDI), HRI:toUnit(lastOutputs.HRI),
+            TRS:toUnit(lastOutputs.TRS), RVI:toUnit(lastOutputs.RVI),
+            SCI:toUnit(lastOutputs.SCI), SCI_grade:lastOutputs.SCI_grade,
+            judgment:lastOutputs.judgment
+          }
+        : { // ローカルの状態（デモ用）
+            ...state, SCI: computeSCI(state), SCI_grade: bandFromSCI(computeSCI(state)), judgment:null
+          };
 
-      const {playbook,rationale,exit,phase} = decidePlaybook(sci, doq);
+      // バッジ/ゲージ
+      badge(document.getElementById('sciBadge'), use.SCI_grade);
+      badge(document.getElementById('doqBadge'), bandForIndicator(use.DoQ));
+      width(document.getElementById('sciFill'), use.SCI);
+      width(document.getElementById('doqFill'), use.DoQ);
+
+      // 右ペイン（judgmentがあれば優先）
       const pBadge = document.getElementById('playbookBadge');
       const phaseBadge = document.getElementById('phaseBadge');
-      const advice = document.getElementById('advice');
-
-      phaseBadge.textContent = phase;
-      phaseBadge.classList.remove('g','a','r');
-      phaseBadge.classList.add(phase==='STABLE'?'g':phase==='WATCH'?'a':'r');
-
-      pBadge.textContent = playbook;
-      pBadge.classList.remove('g','a','r');
-      pBadge.classList.add(playbook==='NONE'?'g':playbook==='SOFT'?'a':'r');
-
-      advice.innerHTML = `<strong>Rationale</strong>: ${rationale}<br/><strong>Exit condition</strong>: ${exit}`;
+      const gradeBadge = document.getElementById('gradeBadge');
+      if(use.judgment){
+        document.getElementById('advice').innerHTML =
+          `<strong>${use.judgment.label}</strong>: ` + (use.judgment.bullets||[]).join(' / ');
+        badge(gradeBadge, use.SCI_grade || 'GREEN');
+        // 簡易フェーズ
+        phaseBadge.textContent = (use.SCI >= 0.70) ? 'CRITICAL' : (use.SCI >= 0.55 ? 'WATCH' : 'STABLE');
+        phaseBadge.className = 'badge ' + ((use.SCI >= 0.70)?'r':(use.SCI>=0.55)?'a':'g');
+        pBadge.textContent = (use.SCI >= 0.70) ? 'HARD' : (use.SCI >= 0.55 ? 'SOFT' : 'NONE');
+        pBadge.className = 'badge ' + ((use.SCI >= 0.70)?'r':(use.SCI>=0.55)?'a':'g');
+      }else{
+        document.getElementById('advice').textContent = 'Stable. Monitoring only.';
+        badge(gradeBadge, use.SCI_grade);
+      }
     }
 
+    // ===== Demo-only local SCI (fallback) =====
+    const weights = { DoQ:0.22, CCI:0.18, RDI:0.14, HRI:0.10, TRS:0.10, RVI:0.06 };
+    function computeSCI(s){
+      const inv = k => 1 - clamp01(s[k]);
+      let score = inv('CCI')*weights.CCI + inv('DoQ')*weights.DoQ + inv('RDI')*weights.RDI
+                + inv('HRI')*weights.HRI + inv('TRS')*weights.TRS + inv('RVI')*weights.RVI;
+      const wsum = Object.values(weights).reduce((a,b)=>a+b,0);
+      return clamp01(score/wsum);
+    }
+    function bandFromSCI(sci01){ // APIのGREEN/YELLOW/RED互換
+      if(sci01 >= 0.70) return 'RED';
+      if(sci01 >= 0.55) return 'YELLOW';
+      return 'GREEN';
+    }
+    function bandForIndicator(v01){ // DoQなど個別（例としてDoQは高いほど良い）
+      // 0..1 を単純に3段階
+      if(v01 < 0.45) return 'RED';
+      if(v01 < 0.60) return 'YELLOW';
+      return 'GREEN';
+    }
+
+    // ===== API call =====
+    async function analyzeAPI(){
+      hideErr();
+      const text = (document.getElementById('docInput').value||'').trim();
+      let payload;
+      if(text){
+        payload = { documents:[{ text }] }; // Hモード
+      }else{
+        // スライダー→ scores（0..1 → 0..100）
+        const scores = {};
+        INDICATORS.forEach(ind => { scores[ind.key] = toPct(state[ind.key]); });
+        payload = { scores }; // Bモード
+      }
+      try{
+        const res = await fetch(API + '/api/score', {
+          method:'POST',
+          headers:{'content-type':'application/json'},
+          body: JSON.stringify(payload),
+          mode:'cors'
+        });
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        const data = await res.json();
+        // outputs(0..100) を保存してUIをAPI優先に切替
+        lastOutputs = data.outputs || null;
+        update();
+        document.getElementById('jsonOut').textContent = JSON.stringify(data, null, 2);
+      }catch(err){
+        showErr(err.message||String(err));
+      }
+    }
+
+    // ===== UI wires =====
+    function showErr(msg){ const el = document.getElementById('err'); el.textContent=msg; el.style.display='block'; }
+    function hideErr(){ const el = document.getElementById('err'); el.style.display='none'; }
+
+    document.getElementById('analyzeBtn').addEventListener('click', analyzeAPI);
     document.getElementById('exportBtn').addEventListener('click', ()=>{
       const snapshot = {
         timestamp: new Date().toISOString(),
-        indicators: {...state, SCI: computeSCI(state)},
-        decision: decidePlaybook(computeSCI(state), state.DoQ)
+        indicators: lastOutputs ? lastOutputs : Object.fromEntries(INDICATORS.map(d=>[d.key,toPct(state[d.key])]))
       };
       document.getElementById('jsonOut').textContent = JSON.stringify(snapshot, null, 2);
     });
 
+    // ===== boot =====
     renderRows();
     update();
   </script>
