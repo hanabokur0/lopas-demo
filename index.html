@@ -37,7 +37,7 @@
   <h1>LoPAS — 文章から自己理解（棒グラフ）</h1>
   <div class="sub">
     ①文章を貼る → ②「解析」 → ③DoQ/CCI/TRS/RVI…を棒グラフで可視化。<br>
-    API: <span id="api_url"></span> ／ 例：<code>?api=https://icy-wave-e70d.hanabokur0.workers.dev</code>
+    API: <span id="api_url"></span> ／ 例：<code>?api=https://icy-wave-e70d.hanabokur0.workers.dev&key=demo123</code>
   </div>
 </header>
 
@@ -102,13 +102,17 @@
   // === API base ===
   const qs = (k)=> new URLSearchParams(location.search).get(k);
   const API = (qs('api')||'https://icy-wave-e70d.hanabokur0.workers.dev').replace(/\/+$/,'');
+  const API_KEY = qs('key')||''; // ← APIキー追加（?key=demo123）
+
   document.getElementById('api_url').textContent = API;
 
   // === helpers ===
   function showErr(msg){ const e=document.getElementById('err'); e.textContent=msg; e.style.display='block'; setTimeout(()=>e.style.display='none',5000); }
   async function postJSON(path,payload){
     try{
-      const res = await fetch(API+path,{ method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(payload), mode:'cors' });
+      const headers = {'content-type':'application/json'};
+      if(API_KEY) headers['Authorization'] = 'Bearer '+API_KEY; // ← ここでAPIキーを付与
+      const res = await fetch(API+path,{ method:'POST', headers, body:JSON.stringify(payload), mode:'cors' });
       const txt = await res.text();
       let data; try{ data = JSON.parse(txt); } catch{ throw new Error('Bad JSON: '+txt.slice(0,200)); }
       if(!res.ok) throw new Error('HTTP '+res.status);
@@ -116,21 +120,18 @@
       return data;
     }catch(e){ showErr(e.message||String(e)); throw e; }
   }
+
   const mirror = (id)=>{ const el=document.getElementById(id), v=document.getElementById(id+'_v'); if(el&&v){ el.addEventListener('input',()=>v.textContent=el.value); v.textContent=el.value; } };
   ['doq_q','doq_s','doq_d','doq_i','trs_f','trs_r','trs_w','trs_m'].forEach(mirror);
 
-  // === drawing (simple vanilla canvas bar chart) ===
   function band(val){ return val>=70?'r':val>=55?'a':'g'; }
   function drawBarChart(ctx, series){
     const W=ctx.canvas.width, H=ctx.canvas.height;
     ctx.clearRect(0,0,W,H);
-    // axes
     ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=1;
     ctx.beginPath(); ctx.moveTo(50,20); ctx.lineTo(50,H-30); ctx.lineTo(W-10,H-30); ctx.stroke();
-    // y labels
     ctx.fillStyle='rgba(202,224,255,.8)'; ctx.font='12px ui-monospace';
     for(let y=0;y<=100;y+=20){ const yy=map(y,0,100,H-30,20); ctx.fillText(String(y), 12, yy+4); ctx.globalAlpha=0.15; ctx.beginPath(); ctx.moveTo(50,yy); ctx.lineTo(W-10,yy); ctx.stroke(); ctx.globalAlpha=1; }
-    // bars
     const keys=['DoQ','CCI','RDI','HRI','TRS','RVI','AHI'];
     const vals=keys.map(k=>series[k]).map(v=>Number.isFinite(+v)?+v:0);
     const n=keys.length, gap=14; const barW=((W-70)-(n-1)*gap)/n;
@@ -143,32 +144,25 @@
       ctx.fillText(String(v), x+barW-22, y-6);
     }
   }
-  function map(v, a1,b1, a2,b2){ return a2+(v-a1)*(b2-a2)/(b1-a1); }
+  function map(v,a1,b1,a2,b2){ return a2+(v-a1)*(b2-a2)/(b1-a1); }
 
   function render(out){
-    // chart
     const ctx = document.getElementById('barChart').getContext('2d');
     drawBarChart(ctx, out||{});
-
-    // badges
     const grade = (out.SCI_grade||'—'); const sci = (out.SCI!=null? out.SCI : '—');
     const gb = document.getElementById('gradeBadge');
     gb.textContent = `SCI: ${sci} (${grade})`;
     gb.className = 'badge ' + (grade==='RED'?'r':grade==='YELLOW'?'a':'g');
-
     const phase = out.SCI>=70?'CRITICAL':out.SCI>=55?'WATCH':(out.SCI!=null?'STABLE':'—');
     const play  = out.SCI>=70?'HARD':out.SCI>=55?'SOFT':(out.SCI!=null?'NONE':'—');
     const pb = document.getElementById('playBadge'), ph = document.getElementById('phaseBadge');
     pb.textContent = `PLAYBOOK: ${play}`; pb.className='badge '+(play==='HARD'?'r':play==='SOFT'?'a':'g');
     ph.textContent = `PHASE: ${phase}`;  ph.className='badge '+(phase==='CRITICAL'?'r':phase==='WATCH'?'a':'g');
-
-    // advice
     const adv = document.getElementById('advice');
     if(out.judgment){ adv.innerHTML = (out.judgment.bullets||[]).map(x=>'• '+x).join('\n'); }
     else { adv.textContent = '—'; }
   }
 
-  // === payload builders ===
   function buildFeatures(){
     const g=id=>Number(document.getElementById(id)?.value||0);
     return { DoQ:{questionCount:g('doq_q'),struct:g('doq_s'),diversity:g('doq_d'),integration:g('doq_i')},
@@ -179,28 +173,16 @@
     return { DoQ:g('s_doq'), CCI:g('s_cci'), RDI:g('s_rdi'), HRI:g('s_hri'), TRS:g('s_trs'), RVI:g('s_rvi'), AHI:g('s_ahi') };
   }
 
-  // === actions ===
-  async function runDocs(){
-    const txt = (document.getElementById('doc_text').value||'').trim();
-    const payload = txt ? { documents:[{text:txt}] } : { documents:[{text:"今日は会議？A案B案？ 疲労感が強く、短時間の回復を優先したい。"}] };
-    const out = await postJSON('/api/score', payload);
-    render(out.outputs||{});
-  }
-  async function runFeatures(){ const out = await postJSON('/api/score', { inputs: buildFeatures() }); render(out.outputs||{}); }
-  async function runScores(){ const out = await postJSON('/api/score', { scores: buildScores() }); render(out.outputs||{}); }
+  async function runDocs(){ const txt=(document.getElementById('doc_text').value||'').trim(); const payload=txt?{documents:[{text:txt}]}:{documents:[{text:"今日は会議？A案B案？ 疲労感が強く、短時間の回復を優先したい。"}]}; const out=await postJSON('/api/score', payload); render(out.outputs||{}); }
+  async function runFeatures(){ const out=await postJSON('/api/score', {inputs:buildFeatures()}); render(out.outputs||{}); }
+  async function runScores(){ const out=await postJSON('/api/score', {scores:buildScores()}); render(out.outputs||{}); }
 
   document.getElementById('btn_docs').addEventListener('click', runDocs);
   document.getElementById('btn_demo').addEventListener('click', runDocs);
   document.getElementById('btn_features').addEventListener('click', runFeatures);
   document.getElementById('btn_scores').addEventListener('click', runScores);
 
-  // 初期描画（空データの棒グラフ）
   render({});
-})();
-</script>
-</body>
-</html>
-
 })();
 </script>
 </body>
