@@ -1,189 +1,253 @@
 <!doctype html>
-<html lang="ja">
+<html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>LoPAS Demo — Document → Scores (Bar Chart)</title>
-<style>
-  :root{--bg:#0b1020;--card:#121831;--muted:#9fb0d9;--text:#e9f0ff;--ok:#2fd47a;--warn:#ffb020;--bad:#ff5d6c;--br:rgba(255,255,255,.12)}
-  *{box-sizing:border-box;font-family:system-ui,Segoe UI,Roboto,"Noto Sans JP",sans-serif}
-  body{margin:0;background:radial-gradient(1200px 600px at 70% -200px,#1a254b 0%,#0b1020 55%,#0a0f1f 100%);color:var(--text)}
-  header{padding:22px 16px 8px;max-width:1100px;margin:0 auto}
-  h1{margin:0 0 6px;font-size:clamp(18px,3vw,26px)}
-  .sub{color:var(--muted);font-size:13px}
-  main{max-width:1100px;margin:0 auto;padding:12px 16px 60px;display:grid;gap:14px;grid-template-columns:1.05fr .95fr}
-  @media (max-width:980px){main{grid-template-columns:1fr}}
-  .card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.015));border:1px solid var(--br);border-radius:16px;padding:14px}
-  textarea,input,button{background:#101735;color:#e9f0ff;border:1px solid var(--br);border-radius:10px}
-  textarea{width:100%;min-height:140px;padding:10px}
-  .row{display:grid;grid-template-columns:150px 1fr 80px;gap:10px;align-items:center;margin:8px 0}
-  .btn{padding:10px 14px;border-radius:12px;background:#1f2b54;cursor:pointer}
-  .btn.secondary{background:#0f1635}
-  .muted{color:var(--muted)}
-  .mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;color:#cae0ff}
-  .badge{display:inline-block;border-radius:999px;padding:4px 10px;font-weight:700;font-size:12px;margin:2px;border:1px solid var(--br)}
-  .g{background:rgba(47,212,122,.15);color:#bdf3d6;border-color:rgba(47,212,122,.35)}
-  .a{background:rgba(255,176,32,.15);color:#ffe3b3;border-color:rgba(255,176,32,.35)}
-  .r{background:rgba(255,93,108,.15);color:#ffd0d4;border-color:rgba(255,93,108,.35)}
-  .err{display:none;border:1px solid #f2b8b5;background:#ffecec;color:#851d19;border-radius:8px;padding:8px 10px;margin:8px 0}
-  details{margin-top:12px}
-  details summary{cursor:pointer;user-select:none}
-  canvas{width:100%;height:280px;display:block;background:rgba(255,255,255,.02);border:1px solid var(--br);border-radius:12px}
-  .kpi{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LoPAS Real-Time Demo (PKO / Indicators × Policy-as-Code) v1.3</title>
+  <style>
+    :root{--bg:#0b1020;--card:#121831;--muted:#9fb0d9;--text:#e9f0ff;--ok:#2fd47a;--warn:#ffb020;--bad:#ff5d6c}
+    *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif}
+    body{margin:0;background:radial-gradient(1200px 600px at 70% -200px,#1a254b 0%,#0b1020 55%,#0a0f1f 100%);color:var(--text)}
+    header{padding:28px 20px 12px;max-width:1100px;margin:0 auto}
+    h1{margin:0 0 6px;font-size:clamp(18px,3vw,26px)}
+    .sub{color:var(--muted);font-size:14px}
+    .wrap{max-width:1100px;margin:0 auto;padding:10px 20px 60px;display:grid;gap:16px;grid-template-columns:1.1fr .9fr}
+    @media (max-width:980px){.wrap{grid-template-columns:1fr}}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.08);box-shadow:0 12px 40px rgba(0,0,0,.35);border-radius:18px;padding:16px}
+    .row{display:grid;grid-template-columns:150px 1fr 80px;gap:12px;align-items:center;margin:10px 0}
+    .row label{font-weight:600}
+    input[type=range]{width:100%}
+    .badge{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:6px 12px;font-weight:700;font-size:12px;letter-spacing:.2px}
+    .g{background:rgba(47,212,122,.15);color:#bdf3d6;border:1px solid rgba(47,212,122,.35)}
+    .a{background:rgba(255,176,32,.15);color:#ffe3b3;border:1px solid rgba(255,176,32,.35)}
+    .r{background:rgba(255,93,108,.15);color:#ffd0d4;border:1px solid rgba(255,93,108,.35)}
+    .kpi{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0}
+    .meter{height:10px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden}
+    .fill{height:100%;background:linear-gradient(90deg,#36d39e,#2a9df4);width:0%}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;color:#cae0ff}
+    .callout{border-left:4px solid #3aa5ff;background:rgba(58,165,255,.08);padding:10px 12px;border-radius:8px}
+    button{background:#1f2b54;border:1px solid rgba(255,255,255,.12);color:#d9e6ff;padding:10px 14px;border-radius:12px;cursor:pointer}
+    button:hover{filter:brightness(1.1)}
+    textarea{width:100%;min-height:120px;background:#0f1733;color:#e9f0ff;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px}
+    .topbar{display:flex;gap:8px;align-items:center;margin:8px 0 0}
+    .pill{border:1px solid rgba(47,212,122,.4);color:#bdf3d6;background:rgba(47,212,122,.12);border-radius:999px;padding:4px 10px;font-size:12px}
+    .muted{color:var(--muted)}
+    .err{display:none;margin-top:8px;border:1px solid rgba(255,93,108,.35);color:#ffd0d4;background:rgba(255,93,108,.12);padding:8px 10px;border-radius:8px}
+  </style>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-<header>
-  <h1>LoPAS — 文章から自己理解（棒グラフ）</h1>
-  <div class="sub">
-    ①文章を貼る → ②「解析」 → ③DoQ/CCI/TRS/RVI…を棒グラフで可視化。<br>
-    API: <span id="api_url"></span> ／ 例：<code>?api=https://icy-wave-e70d.hanabokur0.workers.dev&key=demo123</code>
-  </div>
-</header>
-
-<main>
-  <!-- 左：生活者の“種”（ドキュメント入力） -->
-  <section class="card">
-    <h3>文章（今日の状況・メモ・議事録など）</h3>
-    <textarea id="doc_text" placeholder="ここに文章を貼る。例：今日は会議でA案とB案の比較をした。課題は～？ 休息が足りておらず集中が…"></textarea>
-    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-      <button class="btn" id="btn_docs">解析（documents → heuristic）</button>
-      <button class="btn secondary" id="btn_demo">デモ値で確認</button>
-      <span class="muted" id="hint">ヒント：まず短いメモでもOK。DoQは「?」の密度で少し動きます。</span>
+  <header>
+    <h1>LoPAS Real-Time Demo (PKO / Indicators × Policy-as-Code) v1.3</h1>
+    <div class="sub">Paste a transcript or move the sliders, then click <strong>Analyze (API)</strong>. API recomputes indicators server-side on Cloudflare Workers.<br/>* Demo formulas only. Replace via adapters.</div>
+    <div class="topbar">
+      <span class="pill" id="apiPill">Live API v1.3</span>
+      <span class="muted mono">API: <span id="api_url"></span></span>
     </div>
-    <div id="err" class="err"></div>
+  </header>
 
-    <details>
-      <summary>研究者向け（任意）: features / scores を直接送る</summary>
-      <div class="row"><span>DoQ: questionCount</span><input id="doq_q" type="range" min="0" max="12" value="6"><span id="doq_q_v">6</span></div>
-      <div class="row"><span>DoQ: struct</span><input id="doq_s" type="range" min="0" max="100" value="60"><span id="doq_s_v">60</span></div>
-      <div class="row"><span>DoQ: diversity</span><input id="doq_d" type="range" min="0" max="100" value="55"><span id="doq_d_v">55</span></div>
-      <div class="row"><span>DoQ: integration</span><input id="doq_i" type="range" min="0" max="100" value="70"><span id="doq_i_v">70</span></div>
-      <div class="row"><span>TRS: fatigue</span><input id="trs_f" type="range" min="0" max="100" value="30"><span id="trs_f_v">30</span></div>
-      <div class="row"><span>TRS: recovery</span><input id="trs_r" type="range" min="0" max="100" value="70"><span id="trs_r_v">70</span></div>
-      <div class="row"><span>TRS: reward</span><input id="trs_w" type="range" min="0" max="100" value="60"><span id="trs_w_v">60</span></div>
-      <div class="row"><span>TRS: meaning</span><input id="trs_m" type="range" min="0" max="100" value="80"><span id="trs_m_v">80</span></div>
-      <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
-        <button class="btn secondary" id="btn_features">解析（features→scores）</button>
-        <button class="btn secondary" id="btn_scores">送信（scores直渡し）</button>
+  <main class="wrap">
+    <!-- Left column -->
+    <section class="card">
+      <h3>Input (Transcript / Minutes)</h3>
+      <textarea id="docInput" placeholder="Paste conversation / minutes…"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button id="analyzeBtn">Analyze (API)</button>
+        <button id="exportBtn">Export Snapshot (JSON)</button>
+        <span id="err" class="err">Error</span>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:8px">
-        <input id="s_doq" type="number" min="0" max="100" value="58" title="DoQ">
-        <input id="s_cci" type="number" min="0" max="100" value="62" title="CCI">
-        <input id="s_rdi" type="number" min="0" max="100" value="60" title="RDI">
-        <input id="s_hri" type="number" min="0" max="100" value="55" title="HRI">
-        <input id="s_trs" type="number" min="0" max="100" value="61" title="TRS">
-        <input id="s_rvi" type="number" min="0" max="100" value="50" title="RVI">
-        <input id="s_ahi" type="number" min="0" max="100" value="54" title="AHI">
+
+      <h3>Indicators</h3>
+      <div id="rows"></div>
+
+      <div class="grid2" style="margin-top:14px">
+        <div class="card">
+          <strong>Composite Risk (SCI)</strong>
+          <span id="sciBadge" class="badge g">GREEN</span>
+          <div class="meter" style="margin-top:10px"><div id="sciFill" class="fill"></div></div>
+        </div>
+        <div class="card">
+          <strong>Density of Questions (DoQ)</strong>
+          <span id="doqBadge" class="badge g">GREEN</span>
+          <div class="meter" style="margin-top:10px"><div id="doqFill" class="fill"></div></div>
+        </div>
       </div>
-    </details>
-  </section>
 
-  <!-- 右：自己理解の鏡（棒グラフ＋解説） -->
-  <section class="card">
-    <h3>結果（自己理解）</h3>
-    <canvas id="barChart" width="640" height="280"></canvas>
-    <div class="kpi">
-      <span class="badge g" id="gradeBadge">SCI: —</span>
-      <span class="badge g" id="phaseBadge">PHASE: —</span>
-      <span class="badge g" id="playBadge">PLAYBOOK: —</span>
-    </div>
-    <div id="advice" class="mono"></div>
+      <!-- グラフカード -->
+      <div class="card" style="margin-top:14px">
+        <h3>Charts</h3>
+        <div class="grid2">
+          <div>
+            <div class="sub">Radar</div>
+            <canvas id="radarChart" height="250"></canvas>
+          </div>
+          <div>
+            <div class="sub">Bars</div>
+            <canvas id="barChart" height="250"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <details style="margin-top:12px">
-      <summary>APIレスポンス（確認用）</summary>
-      <pre id="raw" class="mono"></pre>
-    </details>
-  </section>
-</main>
+    <!-- Right column -->
+    <section class="card">
+      <h3>Recommended Intervention</h3>
+      <div id="advice" class="callout">—</div>
+      <div class="kpi">
+        <span id="phaseBadge" class="badge g">STABLE</span>
+        <span id="playbookBadge" class="badge g">NONE</span>
+        <span id="gradeBadge" class="badge g">GREEN</span>
+      </div>
+      <div style="margin-top:12px">
+        <div class="mono" id="jsonOut"></div>
+      </div>
+    </section>
+  </main>
 
-<script>
-(function(){
-  // === API base ===
-  const qs = (k)=> new URLSearchParams(location.search).get(k);
-  const API = (qs('api')||'https://icy-wave-e70d.hanabokur0.workers.dev').replace(/\/+$/,'');
-  const API_KEY = qs('key')||''; // ← APIキー追加（?key=demo123）
+  <script>
+    const qs = (k)=> new URLSearchParams(location.search).get(k);
+    const API = (qs('api') || 'https://lopas-core-v1-3.hanabokur0.workers.dev').replace(/\/+$/,'');
+    document.getElementById('api_url').textContent = API;
 
-  document.getElementById('api_url').textContent = API;
+    const INDICATORS = [
+      {key:"DoQ", label:"DoQ (Density of Questions)"},
+      {key:"CCI", label:"CCI (Connectivity)"},
+      {key:"RDI", label:"RDI (Reasoning Divergence)"},
+      {key:"HRI", label:"HRI (Hypothesis Reframing)"},
+      {key:"TRS", label:"TRS (Total Resonant Score)"},
+      {key:"RVI", label:"RVI (Restoration Value Index)"}
+    ];
+    const state = Object.fromEntries(INDICATORS.map(d=>[d.key,0.65]));
+    let lastOutputs = null;
 
-  // === helpers ===
-  function showErr(msg){ const e=document.getElementById('err'); e.textContent=msg; e.style.display='block'; setTimeout(()=>e.style.display='none',5000); }
-  async function postJSON(path,payload){
-    try{
-      const headers = {'content-type':'application/json'};
-      if(API_KEY) headers['Authorization'] = 'Bearer '+API_KEY; // ← ここでAPIキーを付与
-      const res = await fetch(API+path,{ method:'POST', headers, body:JSON.stringify(payload), mode:'cors' });
-      const txt = await res.text();
-      let data; try{ data = JSON.parse(txt); } catch{ throw new Error('Bad JSON: '+txt.slice(0,200)); }
-      if(!res.ok) throw new Error('HTTP '+res.status);
-      document.getElementById('raw').textContent = JSON.stringify(data, null, 2);
-      return data;
-    }catch(e){ showErr(e.message||String(e)); throw e; }
-  }
+    const clamp01 = x => Math.max(0, Math.min(1, x));
+    const toPct = u01 => Math.round(clamp01(u01) * 100);
+    const toUnit = pct => clamp01((Number(pct)||0) / 100);
 
-  const mirror = (id)=>{ const el=document.getElementById(id), v=document.getElementById(id+'_v'); if(el&&v){ el.addEventListener('input',()=>v.textContent=el.value); v.textContent=el.value; } };
-  ['doq_q','doq_s','doq_d','doq_i','trs_f','trs_r','trs_w','trs_m'].forEach(mirror);
+    function badge(el, band){ el.classList.remove('g','a','r'); el.textContent = band;
+      el.classList.add(band==='GREEN'?'g':band==='YELLOW'?'a':'r'); }
+    function width(el, v01){ el.style.width = (100*clamp01(v01)).toFixed(1) + '%'; }
 
-  function band(val){ return val>=70?'r':val>=55?'a':'g'; }
-  function drawBarChart(ctx, series){
-    const W=ctx.canvas.width, H=ctx.canvas.height;
-    ctx.clearRect(0,0,W,H);
-    ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(50,20); ctx.lineTo(50,H-30); ctx.lineTo(W-10,H-30); ctx.stroke();
-    ctx.fillStyle='rgba(202,224,255,.8)'; ctx.font='12px ui-monospace';
-    for(let y=0;y<=100;y+=20){ const yy=map(y,0,100,H-30,20); ctx.fillText(String(y), 12, yy+4); ctx.globalAlpha=0.15; ctx.beginPath(); ctx.moveTo(50,yy); ctx.lineTo(W-10,yy); ctx.stroke(); ctx.globalAlpha=1; }
-    const keys=['DoQ','CCI','RDI','HRI','TRS','RVI','AHI'];
-    const vals=keys.map(k=>series[k]).map(v=>Number.isFinite(+v)?+v:0);
-    const n=keys.length, gap=14; const barW=((W-70)-(n-1)*gap)/n;
-    for(let i=0;i<n;i++){
-      const x=50+i*(barW+gap), v=vals[i], y=map(v,0,100,H-30,20);
-      const col = (v>=70)?'#ff5d6c':(v>=55)?'#ffb020':'#2fd47a';
-      ctx.fillStyle=col; ctx.fillRect(x, y, barW, (H-30)-y);
-      ctx.fillStyle='rgba(233,240,255,.9)'; ctx.font='12px ui-monospace';
-      ctx.fillText(keys[i], x, H-14);
-      ctx.fillText(String(v), x+barW-22, y-6);
+    function renderRows(){
+      const wrap = document.getElementById('rows'); wrap.innerHTML='';
+      INDICATORS.forEach(ind =>{
+        const row = document.createElement('div'); row.className='row';
+        const lab = document.createElement('label'); lab.textContent=ind.label;
+        const range = document.createElement('input');
+        range.type='range'; range.min='0'; range.max='1'; range.step='0.01'; range.value=state[ind.key];
+        const val = document.createElement('div'); val.style.textAlign='right'; val.textContent=state[ind.key].toFixed(2);
+        range.addEventListener('input', e=>{ state[ind.key]=Number(e.target.value); val.textContent=state[ind.key].toFixed(2); update(); updateCharts();});
+        const cell = document.createElement('div'); cell.appendChild(range);
+        row.appendChild(lab); row.appendChild(cell); row.appendChild(val);
+        wrap.appendChild(row);
+      });
     }
-  }
-  function map(v,a1,b1,a2,b2){ return a2+(v-a1)*(b2-a2)/(b1-a1); }
 
-  function render(out){
-    const ctx = document.getElementById('barChart').getContext('2d');
-    drawBarChart(ctx, out||{});
-    const grade = (out.SCI_grade||'—'); const sci = (out.SCI!=null? out.SCI : '—');
-    const gb = document.getElementById('gradeBadge');
-    gb.textContent = `SCI: ${sci} (${grade})`;
-    gb.className = 'badge ' + (grade==='RED'?'r':grade==='YELLOW'?'a':'g');
-    const phase = out.SCI>=70?'CRITICAL':out.SCI>=55?'WATCH':(out.SCI!=null?'STABLE':'—');
-    const play  = out.SCI>=70?'HARD':out.SCI>=55?'SOFT':(out.SCI!=null?'NONE':'—');
-    const pb = document.getElementById('playBadge'), ph = document.getElementById('phaseBadge');
-    pb.textContent = `PLAYBOOK: ${play}`; pb.className='badge '+(play==='HARD'?'r':play==='SOFT'?'a':'g');
-    ph.textContent = `PHASE: ${phase}`;  ph.className='badge '+(phase==='CRITICAL'?'r':phase==='WATCH'?'a':'g');
-    const adv = document.getElementById('advice');
-    if(out.judgment){ adv.innerHTML = (out.judgment.bullets||[]).map(x=>'• '+x).join('\n'); }
-    else { adv.textContent = '—'; }
-  }
+    function update(){
+      const use = lastOutputs
+        ? { DoQ:toUnit(lastOutputs.DoQ), CCI:toUnit(lastOutputs.CCI),
+            RDI:toUnit(lastOutputs.RDI), HRI:toUnit(lastOutputs.HRI),
+            TRS:toUnit(lastOutputs.TRS), RVI:toUnit(lastOutputs.RVI),
+            SCI:toUnit(lastOutputs.SCI), SCI_grade:lastOutputs.SCI_grade, judgment:lastOutputs.judgment }
+        : { ...state, SCI: computeSCI(state), SCI_grade: bandFromSCI(computeSCI(state)), judgment:null };
 
-  function buildFeatures(){
-    const g=id=>Number(document.getElementById(id)?.value||0);
-    return { DoQ:{questionCount:g('doq_q'),struct:g('doq_s'),diversity:g('doq_d'),integration:g('doq_i')},
-             TRS:{fatigue:g('trs_f'),recovery:g('trs_r'),reward:g('trs_w'),meaning:g('trs_m')} };
-  }
-  function buildScores(){
-    const g=id=>Number(document.getElementById(id)?.value||0);
-    return { DoQ:g('s_doq'), CCI:g('s_cci'), RDI:g('s_rdi'), HRI:g('s_hri'), TRS:g('s_trs'), RVI:g('s_rvi'), AHI:g('s_ahi') };
-  }
+      badge(document.getElementById('sciBadge'), use.SCI_grade);
+      badge(document.getElementById('doqBadge'), bandForIndicator(use.DoQ));
+      width(document.getElementById('sciFill'), use.SCI);
+      width(document.getElementById('doqFill'), use.DoQ);
 
-  async function runDocs(){ const txt=(document.getElementById('doc_text').value||'').trim(); const payload=txt?{documents:[{text:txt}]}:{documents:[{text:"今日は会議？A案B案？ 疲労感が強く、短時間の回復を優先したい。"}]}; const out=await postJSON('/api/score', payload); render(out.outputs||{}); }
-  async function runFeatures(){ const out=await postJSON('/api/score', {inputs:buildFeatures()}); render(out.outputs||{}); }
-  async function runScores(){ const out=await postJSON('/api/score', {scores:buildScores()}); render(out.outputs||{}); }
+      const pBadge = document.getElementById('playbookBadge');
+      const phaseBadge = document.getElementById('phaseBadge');
+      const gradeBadge = document.getElementById('gradeBadge');
+      if(use.judgment){
+        document.getElementById('advice').innerHTML = `<strong>${use.judgment.label}</strong>: ` + (use.judgment.bullets||[]).join(' / ');
+        badge(gradeBadge, use.SCI_grade || 'GREEN');
+        phaseBadge.textContent = (use.SCI >= 0.70) ? 'CRITICAL' : (use.SCI >= 0.55 ? 'WATCH' : 'STABLE');
+        phaseBadge.className = 'badge ' + ((use.SCI >= 0.70)?'r':(use.SCI>=0.55)?'a':'g');
+        pBadge.textContent = (use.SCI >= 0.70) ? 'HARD' : (use.SCI >= 0.55 ? 'SOFT' : 'NONE');
+        pBadge.className = 'badge ' + ((use.SCI >= 0.70)?'r':(use.SCI>=0.55)?'a':'g');
+      }else{
+        document.getElementById('advice').textContent = 'Stable. Monitoring only.';
+        badge(gradeBadge, use.SCI_grade);
+      }
+    }
 
-  document.getElementById('btn_docs').addEventListener('click', runDocs);
-  document.getElementById('btn_demo').addEventListener('click', runDocs);
-  document.getElementById('btn_features').addEventListener('click', runFeatures);
-  document.getElementById('btn_scores').addEventListener('click', runScores);
+    const weights = { DoQ:0.22, CCI:0.18, RDI:0.14, HRI:0.10, TRS:0.10, RVI:0.06 };
+    function computeSCI(s){
+      const inv = k => 1 - clamp01(s[k]);
+      let score = inv('CCI')*weights.CCI + inv('DoQ')*weights.DoQ + inv('RDI')*weights.RDI
+                + inv('HRI')*weights.HRI + inv('TRS')*weights.TRS + inv('RVI')*weights.RVI;
+      return clamp01(score/Object.values(weights).reduce((a,b)=>a+b,0));
+    }
+    function bandFromSCI(sci01){ if(sci01 >= 0.70) return 'RED'; if(sci01 >= 0.55) return 'YELLOW'; return 'GREEN'; }
+    function bandForIndicator(v01){ if(v01 < 0.45) return 'RED'; if(v01 < 0.60) return 'YELLOW'; return 'GREEN'; }
 
-  render({});
-})();
-</script>
+    async function analyzeAPI(){
+      hideErr();
+      const text = (document.getElementById('docInput').value||'').trim();
+      let payload;
+      if(text){ payload = { documents:[{ text }] }; }
+      else{
+        const scores = {}; INDICATORS.forEach(ind => { scores[ind.key] = toPct(state[ind.key]); });
+        payload = { scores };
+      }
+      try{
+        const res = await fetch(API + '/v1/eval', {
+          method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload), mode:'cors'
+        });
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        const data = await res.json();
+        lastOutputs = data.outputs || null;
+        update();
+        updateCharts();
+        document.getElementById('jsonOut').textContent = JSON.stringify(data, null, 2);
+      }catch(err){ showErr(err.message||String(err)); }
+    }
+
+    function showErr(msg){ const el = document.getElementById('err'); el.textContent=msg; el.style.display='block'; }
+    function hideErr(){ document.getElementById('err').style.display='none'; }
+
+    document.getElementById('analyzeBtn').addEventListener('click', analyzeAPI);
+    document.getElementById('exportBtn').addEventListener('click', ()=>{
+      const snapshot = {
+        timestamp: new Date().toISOString(),
+        indicators: lastOutputs ? lastOutputs : Object.fromEntries(INDICATORS.map(d=>[d.key,toPct(state[d.key])]))
+      };
+      document.getElementById('jsonOut').textContent = JSON.stringify(snapshot, null, 2);
+    });
+
+    // === Chart.js部分 ===
+    let radarChart = null, barChart = null;
+    function currentScores100(){
+      const keys = ["DoQ","CCI","RDI","HRI","TRS","RVI"];
+      if (lastOutputs) return keys.map(k => Number(lastOutputs[k] ?? 0));
+      else return keys.map(k => Math.round(clamp01(state[k]) * 100));
+    }
+    function initCharts(){
+      const labels = ["DoQ","CCI","RDI","HRI","TRS","RVI"];
+      radarChart = new Chart(document.getElementById('radarChart'), {
+        type:'radar', data:{labels,datasets:[{label:'Indicators',data:currentScores100(),fill:true}]},
+        options:{plugins:{legend:{display:false}},scales:{r:{min:0,max:100}}}
+      });
+      barChart = new Chart(document.getElementById('barChart'), {
+        type:'bar', data:{labels,datasets:[{label:'Score',data:currentScores100()}]},
+        options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100}}}
+      });
+    }
+    function updateCharts(){
+      if(!radarChart||!barChart)return;
+      const data = currentScores100();
+      radarChart.data.datasets[0].data=data;
+      barChart.data.datasets[0].data=data;
+      radarChart.update(); barChart.update();
+    }
+
+    // Boot
+    renderRows();
+    initCharts();
+    update();
+  </script>
 </body>
 </html>
