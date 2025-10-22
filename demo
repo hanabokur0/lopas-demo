@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LoPAS Real-Time Demo (PKO / Policy-as-Code)</title>
+  <title>LoPAS Real-Time Demo (PKO / Indicators × Policy-as-Code) v1.3</title>
   <style>
     :root{--bg:#0b1020;--card:#121831;--muted:#9fb0d9;--text:#e9f0ff;--ok:#2fd47a;--warn:#ffb020;--bad:#ff5d6c}
     *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif}
@@ -35,13 +35,15 @@
     .muted{color:var(--muted)}
     .err{display:none;margin-top:8px;border:1px solid rgba(255,93,108,.35);color:#ffd0d4;background:rgba(255,93,108,.12);padding:8px 10px;border-radius:8px}
   </style>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <header>
-    <h1>LoPAS Real-Time Demo (PKO / Indicators × Policy-as-Code)</h1>
+    <h1>LoPAS Real-Time Demo (PKO / Indicators × Policy-as-Code) v1.3</h1>
     <div class="sub">Paste a transcript or move the sliders, then click <strong>Analyze (API)</strong>. API recomputes indicators server-side on Cloudflare Workers.<br/>* Demo formulas only. Replace via adapters.</div>
     <div class="topbar">
-      <span class="pill" id="apiPill">Live API</span>
+      <span class="pill" id="apiPill">Live API v1.3</span>
       <span class="muted mono">API: <span id="api_url"></span></span>
     </div>
   </header>
@@ -49,7 +51,7 @@
   <main class="wrap">
     <!-- Left column -->
     <section class="card">
-      <h3 style="margin:4px 0 10px">Input (Transcript / Minutes)</h3>
+      <h3>Input (Transcript / Minutes)</h3>
       <textarea id="docInput" placeholder="Paste conversation / minutes…"></textarea>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button id="analyzeBtn">Analyze (API)</button>
@@ -57,32 +59,41 @@
         <span id="err" class="err">Error</span>
       </div>
 
-      <h3 style="margin:16px 0 10px">Indicators</h3>
+      <h3>Indicators</h3>
       <div id="rows"></div>
 
       <div class="grid2" style="margin-top:14px">
         <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-            <strong>Composite Risk (SCI)</strong>
-            <span id="sciBadge" class="badge g">GREEN</span>
-          </div>
+          <strong>Composite Risk (SCI)</strong>
+          <span id="sciBadge" class="badge g">GREEN</span>
           <div class="meter" style="margin-top:10px"><div id="sciFill" class="fill"></div></div>
-          <div class="sub" style="margin-top:8px">SCI is inverse-weighted mix of CCI, DoQ, RDI, HRI, TRS, RVI. Higher = higher collapse risk.</div>
         </div>
         <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-            <strong>Density of Questions (DoQ)</strong>
-            <span id="doqBadge" class="badge g">GREEN</span>
-          </div>
+          <strong>Density of Questions (DoQ)</strong>
+          <span id="doqBadge" class="badge g">GREEN</span>
           <div class="meter" style="margin-top:10px"><div id="doqFill" class="fill"></div></div>
-          <div class="sub" style="margin-top:8px">Higher DoQ = healthier discourse. If low, prioritize branching education & open deliberation.</div>
+        </div>
+      </div>
+
+      <!-- グラフカード -->
+      <div class="card" style="margin-top:14px">
+        <h3>Charts</h3>
+        <div class="grid2">
+          <div>
+            <div class="sub">Radar</div>
+            <canvas id="radarChart" height="250"></canvas>
+          </div>
+          <div>
+            <div class="sub">Bars</div>
+            <canvas id="barChart" height="250"></canvas>
+          </div>
         </div>
       </div>
     </section>
 
     <!-- Right column -->
     <section class="card">
-      <h3 style="margin:4px 0 10px">Recommended Intervention</h3>
+      <h3>Recommended Intervention</h3>
       <div id="advice" class="callout">—</div>
       <div class="kpi">
         <span id="phaseBadge" class="badge g">STABLE</span>
@@ -96,12 +107,10 @@
   </main>
 
   <script>
-    // ===== Config/API =====
     const qs = (k)=> new URLSearchParams(location.search).get(k);
-    const API = (qs('api') || 'https://icy-wave-e70d.hanabokur0.workers.dev').replace(/\/+$/,'');
+    const API = (qs('api') || 'https://lopas-core-v1-3.hanabokur0.workers.dev').replace(/\/+$/,'');
     document.getElementById('api_url').textContent = API;
 
-    // ===== UI state =====
     const INDICATORS = [
       {key:"DoQ", label:"DoQ (Density of Questions)"},
       {key:"CCI", label:"CCI (Connectivity)"},
@@ -111,9 +120,8 @@
       {key:"RVI", label:"RVI (Restoration Value Index)"}
     ];
     const state = Object.fromEntries(INDICATORS.map(d=>[d.key,0.65]));
-    let lastOutputs = null; // APIから返った値（0..100）
+    let lastOutputs = null;
 
-    // ===== Helpers =====
     const clamp01 = x => Math.max(0, Math.min(1, x));
     const toPct = u01 => Math.round(clamp01(u01) * 100);
     const toUnit = pct => clamp01((Number(pct)||0) / 100);
@@ -122,7 +130,6 @@
       el.classList.add(band==='GREEN'?'g':band==='YELLOW'?'a':'r'); }
     function width(el, v01){ el.style.width = (100*clamp01(v01)).toFixed(1) + '%'; }
 
-    // ===== Rendering (sliders) =====
     function renderRows(){
       const wrap = document.getElementById('rows'); wrap.innerHTML='';
       INDICATORS.forEach(ind =>{
@@ -131,42 +138,32 @@
         const range = document.createElement('input');
         range.type='range'; range.min='0'; range.max='1'; range.step='0.01'; range.value=state[ind.key];
         const val = document.createElement('div'); val.style.textAlign='right'; val.textContent=state[ind.key].toFixed(2);
-        range.addEventListener('input', e=>{ state[ind.key]=Number(e.target.value); val.textContent=state[ind.key].toFixed(2); update();});
+        range.addEventListener('input', e=>{ state[ind.key]=Number(e.target.value); val.textContent=state[ind.key].toFixed(2); update(); updateCharts();});
         const cell = document.createElement('div'); cell.appendChild(range);
         row.appendChild(lab); row.appendChild(cell); row.appendChild(val);
         wrap.appendChild(row);
       });
     }
 
-    // ===== Local display update (uses lastOutputs if exists) =====
     function update(){
       const use = lastOutputs
-        ? { // API値 (0..100) を 0..1 に
-            DoQ:toUnit(lastOutputs.DoQ), CCI:toUnit(lastOutputs.CCI),
+        ? { DoQ:toUnit(lastOutputs.DoQ), CCI:toUnit(lastOutputs.CCI),
             RDI:toUnit(lastOutputs.RDI), HRI:toUnit(lastOutputs.HRI),
             TRS:toUnit(lastOutputs.TRS), RVI:toUnit(lastOutputs.RVI),
-            SCI:toUnit(lastOutputs.SCI), SCI_grade:lastOutputs.SCI_grade,
-            judgment:lastOutputs.judgment
-          }
-        : { // ローカルの状態（デモ用）
-            ...state, SCI: computeSCI(state), SCI_grade: bandFromSCI(computeSCI(state)), judgment:null
-          };
+            SCI:toUnit(lastOutputs.SCI), SCI_grade:lastOutputs.SCI_grade, judgment:lastOutputs.judgment }
+        : { ...state, SCI: computeSCI(state), SCI_grade: bandFromSCI(computeSCI(state)), judgment:null };
 
-      // バッジ/ゲージ
       badge(document.getElementById('sciBadge'), use.SCI_grade);
       badge(document.getElementById('doqBadge'), bandForIndicator(use.DoQ));
       width(document.getElementById('sciFill'), use.SCI);
       width(document.getElementById('doqFill'), use.DoQ);
 
-      // 右ペイン（judgmentがあれば優先）
       const pBadge = document.getElementById('playbookBadge');
       const phaseBadge = document.getElementById('phaseBadge');
       const gradeBadge = document.getElementById('gradeBadge');
       if(use.judgment){
-        document.getElementById('advice').innerHTML =
-          `<strong>${use.judgment.label}</strong>: ` + (use.judgment.bullets||[]).join(' / ');
+        document.getElementById('advice').innerHTML = `<strong>${use.judgment.label}</strong>: ` + (use.judgment.bullets||[]).join(' / ');
         badge(gradeBadge, use.SCI_grade || 'GREEN');
-        // 簡易フェーズ
         phaseBadge.textContent = (use.SCI >= 0.70) ? 'CRITICAL' : (use.SCI >= 0.55 ? 'WATCH' : 'STABLE');
         phaseBadge.className = 'badge ' + ((use.SCI >= 0.70)?'r':(use.SCI>=0.55)?'a':'g');
         pBadge.textContent = (use.SCI >= 0.70) ? 'HARD' : (use.SCI >= 0.55 ? 'SOFT' : 'NONE');
@@ -177,61 +174,40 @@
       }
     }
 
-    // ===== Demo-only local SCI (fallback) =====
     const weights = { DoQ:0.22, CCI:0.18, RDI:0.14, HRI:0.10, TRS:0.10, RVI:0.06 };
     function computeSCI(s){
       const inv = k => 1 - clamp01(s[k]);
       let score = inv('CCI')*weights.CCI + inv('DoQ')*weights.DoQ + inv('RDI')*weights.RDI
                 + inv('HRI')*weights.HRI + inv('TRS')*weights.TRS + inv('RVI')*weights.RVI;
-      const wsum = Object.values(weights).reduce((a,b)=>a+b,0);
-      return clamp01(score/wsum);
+      return clamp01(score/Object.values(weights).reduce((a,b)=>a+b,0));
     }
-    function bandFromSCI(sci01){ // APIのGREEN/YELLOW/RED互換
-      if(sci01 >= 0.70) return 'RED';
-      if(sci01 >= 0.55) return 'YELLOW';
-      return 'GREEN';
-    }
-    function bandForIndicator(v01){ // DoQなど個別（例としてDoQは高いほど良い）
-      // 0..1 を単純に3段階
-      if(v01 < 0.45) return 'RED';
-      if(v01 < 0.60) return 'YELLOW';
-      return 'GREEN';
-    }
+    function bandFromSCI(sci01){ if(sci01 >= 0.70) return 'RED'; if(sci01 >= 0.55) return 'YELLOW'; return 'GREEN'; }
+    function bandForIndicator(v01){ if(v01 < 0.45) return 'RED'; if(v01 < 0.60) return 'YELLOW'; return 'GREEN'; }
 
-    // ===== API call =====
     async function analyzeAPI(){
       hideErr();
       const text = (document.getElementById('docInput').value||'').trim();
       let payload;
-      if(text){
-        payload = { documents:[{ text }] }; // Hモード
-      }else{
-        // スライダー→ scores（0..1 → 0..100）
-        const scores = {};
-        INDICATORS.forEach(ind => { scores[ind.key] = toPct(state[ind.key]); });
-        payload = { scores }; // Bモード
+      if(text){ payload = { documents:[{ text }] }; }
+      else{
+        const scores = {}; INDICATORS.forEach(ind => { scores[ind.key] = toPct(state[ind.key]); });
+        payload = { scores };
       }
       try{
-        const res = await fetch(API + '/api/score', {
-          method:'POST',
-          headers:{'content-type':'application/json'},
-          body: JSON.stringify(payload),
-          mode:'cors'
+        const res = await fetch(API + '/v1/eval', {
+          method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload), mode:'cors'
         });
         if(!res.ok) throw new Error('HTTP '+res.status);
         const data = await res.json();
-        // outputs(0..100) を保存してUIをAPI優先に切替
         lastOutputs = data.outputs || null;
         update();
+        updateCharts();
         document.getElementById('jsonOut').textContent = JSON.stringify(data, null, 2);
-      }catch(err){
-        showErr(err.message||String(err));
-      }
+      }catch(err){ showErr(err.message||String(err)); }
     }
 
-    // ===== UI wires =====
     function showErr(msg){ const el = document.getElementById('err'); el.textContent=msg; el.style.display='block'; }
-    function hideErr(){ const el = document.getElementById('err'); el.style.display='none'; }
+    function hideErr(){ document.getElementById('err').style.display='none'; }
 
     document.getElementById('analyzeBtn').addEventListener('click', analyzeAPI);
     document.getElementById('exportBtn').addEventListener('click', ()=>{
@@ -242,8 +218,35 @@
       document.getElementById('jsonOut').textContent = JSON.stringify(snapshot, null, 2);
     });
 
-    // ===== boot =====
+    // === Chart.js部分 ===
+    let radarChart = null, barChart = null;
+    function currentScores100(){
+      const keys = ["DoQ","CCI","RDI","HRI","TRS","RVI"];
+      if (lastOutputs) return keys.map(k => Number(lastOutputs[k] ?? 0));
+      else return keys.map(k => Math.round(clamp01(state[k]) * 100));
+    }
+    function initCharts(){
+      const labels = ["DoQ","CCI","RDI","HRI","TRS","RVI"];
+      radarChart = new Chart(document.getElementById('radarChart'), {
+        type:'radar', data:{labels,datasets:[{label:'Indicators',data:currentScores100(),fill:true}]},
+        options:{plugins:{legend:{display:false}},scales:{r:{min:0,max:100}}}
+      });
+      barChart = new Chart(document.getElementById('barChart'), {
+        type:'bar', data:{labels,datasets:[{label:'Score',data:currentScores100()}]},
+        options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100}}}
+      });
+    }
+    function updateCharts(){
+      if(!radarChart||!barChart)return;
+      const data = currentScores100();
+      radarChart.data.datasets[0].data=data;
+      barChart.data.datasets[0].data=data;
+      radarChart.update(); barChart.update();
+    }
+
+    // Boot
     renderRows();
+    initCharts();
     update();
   </script>
 </body>
